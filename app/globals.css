@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+/*
+  Humanaut Health brand tokens
+  Source: Humanaut Health Brand Guidelines 2025 (Drive) + humanauthealth.com
+  Use these theme colors in components (bg-ink, text-ember, border-ink-30, etc.)
+  rather than hardcoding hex values.
+*/
+:root {
+  --color-ink: #141B1D;          /* Black 90% — headlines, logo, primary text */
+  --color-ink-70: #484E4F;       /* Black 70% — body copy */
+  --color-ink-30: #B1B3B4;       /* Black 30% — dividers, borders */
+  --color-canvas: #F6F6F6;       /* Light gray background/section fill */
+  --color-white: #FFFFFF;
+  --color-ember: #FF7348;        /* Primary accent / CTA — "Ember 100%" */
+  --color-ember-dark: #E85A30;   /* Ember pressed/hover state */
+  --color-ember-tint: #FFDCD1;   /* Ember 25% — tinted backgrounds, highlights */
+
+  --font-display: "Darker Grotesque", Helvetica, Arial, sans-serif;
+  --font-body: Helvetica, Arial, sans-serif;
+
+  --radius-lg: 16px;
+  --radius-sm: 8px;
+}
+
+@theme inline {
+  --color-ink: var(--color-ink);
+  --color-ink-70: var(--color-ink-70);
+  --color-ink-30: var(--color-ink-30);
+  --color-canvas: var(--color-canvas);
+  --color-white: var(--color-white);
+  --color-ember: var(--color-ember);
+  --color-ember-dark: var(--color-ember-dark);
+  --color-ember-tint: var(--color-ember-tint);
+
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+
+  --radius-lg: var(--radius-lg);
+  --radius-sm: var(--radius-sm);
+}
+
+html, body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+}

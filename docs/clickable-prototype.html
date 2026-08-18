@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Humanaut SOS — Clickable Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Darker+Grotesque:wght@500;600;700;800&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#141B1D;
+    --ink-70:#484E4F;
+    --ink-30:#B1B3B4;
+    --canvas:#F6F6F6;
+    --white:#FFFFFF;
+    --ember:#FF7348;
+    --ember-dark:#E85A30;
+    --ember-tint:#FFDCD1;
+    --radius-lg:16px;
+    --radius-sm:8px;
+    --shadow-card: 0 1px 2px rgba(20,27,29,0.06), 0 8px 24px rgba(20,27,29,0.06);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:#E7E7E5;
+    font-family: Helvetica, Arial, sans-serif;
+    color:var(--ink);
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    min-height:100vh;
+    padding:32px 16px;
+    gap:28px;
+  }
+  h1,h2,h3,h4{ font-family:'Darker Grotesque', Helvetica, Arial, sans-serif; font-weight:700; margin:0; letter-spacing:0.2px; }
+  .msi{ font-family:'Material Symbols Outlined'; font-weight:normal; font-style:normal; font-size:22px; line-height:1; letter-spacing:normal; text-transform:none; display:inline-block; white-space:nowrap; word-wrap:normal; direction:ltr; -webkit-font-feature-settings:'liga'; -webkit-font-smoothing:antialiased; vertical-align:middle; }
+
+  /* ---------- Prototype chrome (outside the phone) ---------- */
+  .rig{ display:flex; gap:28px; align-items:flex-start; }
+  .nav-rail{
+    width:240px;
+    background:var(--white);
+    border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-card);
+    padding:20px 16px;
+    position:sticky; top:32px;
+    max-height:calc(100vh - 64px);
+    overflow:auto;
+  }
+  .nav-rail .brand{ display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+  .nav-rail .brand .msi{ color:var(--ember); font-size:26px; }
+  .nav-rail h4{ font-size:20px; }
+  .nav-rail .sub{ font-size:12px; color:var(--ink-70); margin:2px 0 16px; line-height:1.5; }
+  .nav-group-label{ font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-70); font-weight:700; margin:16px 0 6px; }
+  .nav-group-label:first-of-type{ margin-top:0; }
+  .nav-item{
+    display:flex; align-items:center; gap:10px;
+    width:100%; text-align:left; border:none; background:transparent;
+    padding:9px 10px; border-radius:10px; cursor:pointer;
+    font-family: Helvetica, Arial, sans-serif; font-size:13.5px; color:var(--ink);
+  }
+  .nav-item .msi{ font-size:18px; color:var(--ink-70); }
+  .nav-item:hover{ background:var(--canvas); }
+  .nav-item.active{ background:var(--ember-tint); color:var(--ink); font-weight:700; }
+  .nav-item.active .msi{ color:var(--ember-dark); }
+
+  /* ---------- Phone frame ---------- */
+  .phone-shell{
+    width:390px; height:824px;
+    background:var(--ink);
+    border-radius:44px;
+    padding:12px;
+    box-shadow:0 20px 60px rgba(20,27,29,0.35);
+    flex-shrink:0;
+  }
+  .phone-screen{
+    position:relative;
+    width:100%; height:100%;
+    background:var(--canvas);
+    border-radius:34px;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+  .statusbar{
+    height:44px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 22px; font-size:13px; font-weight:700; color:var(--ink);
+  }
+  .screen-body{
+    flex:1;
+    overflow-y:auto;
+    padding:4px 20px 100px;
+  }
+  .screen-body::-webkit-scrollbar{ display:none; }
+
+  /* ---------- Shared UI bits ---------- */
+  .eyebrow{ font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--ember-dark); margin-bottom:4px; }
+  .screen-title{ font-size:30px; line-height:1.05; margin-bottom:4px; }
+  .screen-sub{ font-size:13.5px; color:var(--ink-70); line-height:1.45; margin-bottom:18px; }
+  .card{
+    background:var(--white); border-radius:var(--radius-lg);
+    padding:16px; box-shadow:var(--shadow-card); margin-bottom:12px;
+  }
+  .tag{
+    display:inline-flex; align-items:center; gap:5px;
+    background:var(--canvas); color:var(--ink-70);
+    font-size:11.5px; font-weight:700; padding:5px 10px; border-radius:20px;
+  }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    width:100%; padding:13px 16px; border-radius:14px; border:none;
+    font-family: Helvetica, Arial, sans-serif; font-weight:700; font-size:14.5px;
+    cursor:pointer; text-align:center;
+  }
+  .btn-primary{ background:var(--ember); color:var(--white); }
+  .btn-primary:active{ background:var(--ember-dark); }
+  .btn-ghost{ background:var(--white); color:var(--ink); border:1px solid var(--ink-30); }
+  .btn-dark{ background:var(--ink); color:var(--white); }
+  .btn-sm{ width:auto; padding:9px 14px; font-size:13px; border-radius:11px; }
+  .row{ display:flex; gap:10px; }
+  .row > *{ flex:1; }
+  .list-item{
+    display:flex; align-items:center; gap:12px;
+    padding:12px 0; border-bottom:1px solid #E7E7E5;
+  }
+  .list-item:last-child{ border-bottom:none; }
+  .ic-badge{
+    width:38px; height:38px; border-radius:11px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--ember-tint); color:var(--ember-dark);
+  }
+  .ic-badge.dark{ background:var(--ink); color:var(--white); }
+  .ic-badge.mute{ background:var(--canvas); color:var(--ink-70); }
+  .photo-tile{
+    aspect-ratio:1/1; border-radius:var(--radius-sm);
+    background:linear-gradient(135deg,#FFDCD1,#FFE9E2);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--ember-dark);
+  }
+  .photo-tile.add{
+    background:var(--white); border:1.5px dashed var(--ink-30); color:var(--ink-70);
+  }
+  .grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .grid-2{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+  .divider{ height:1px; background:#E7E7E5; margin:14px 0; border:none; }
+  .pill-row{ display:flex; gap:8px; overflow-x:auto; padding-bottom:2px; margin-bottom:2px; }
+  .pill-row::-webkit-scrollbar{ display:none; }
+  .pill{
+    flex-shrink:0; background:var(--white); border:1px solid #E7E7E5; border-radius:20px;
+    padding:8px 14px; font-size:12.5px; font-weight:700; color:var(--ink); cursor:pointer;
+  }
+  .pill.active{ background:var(--ink); color:var(--white); border-color:var(--ink); }
+  .editable{ font-size:11px; color:var(--ink-70); font-weight:700; margin-left:auto; display:flex; align-items:center; gap:3px; }
+  .editable .msi{ font-size:14px; }
+  .checkitem{ display:flex; align-items:center; gap:10px; padding:9px 0; }
+  .check-dot{
+    width:20px; height:20px; border-radius:6px; border:1.5px solid var(--ink-30);
+    flex-shrink:0; display:flex; align-items:center; justify-content:center; color:var(--white);
+  }
+  .check-dot.done{ background:var(--ember); border-color:var(--ember); }
+  .stat-num{ font-family:'Darker Grotesque',sans-serif; font-weight:800; font-size:40px; line-height:1; color:var(--ember-dark); }
+  .quote-card{ background:var(--ink); color:var(--white); border-radius:var(--radius-lg); padding:20px; }
+  .quote-card .qtxt{ font-family:'Darker Grotesque',sans-serif; font-size:22px; font-weight:600; line-height:1.25; }
+  .avatar{
+    width:42px;height:42px;border-radius:50%; flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--ember-tint); color:var(--ember-dark); font-weight:800; font-size:15px;
+  }
+  .badge-dot{ width:8px; height:8px; border-radius:50%; background:#3DBE6B; display:inline-block; }
+
+  /* ---------- Bottom nav ---------- */
+  .bottomnav{
+    position:absolute; left:0; right:0; bottom:0;
+    height:82px; background:rgba(255,255,255,0.92); backdrop-filter:blur(6px);
+    border-top:1px solid #E3E3E1;
+    display:flex; align-items:center; justify-content:space-around;
+    padding-bottom:14px;
+  }
+  .nav-tab{ display:flex; flex-direction:column; align-items:center; gap:2px; color:var(--ink-70); background:none; border:none; font-size:10px; font-weight:700; font-family:Helvetica,Arial,sans-serif; cursor:pointer; }
+  .nav-tab.active{ color:var(--ink); }
+  .nav-tab .msi{ font-size:22px; }
+  .sos-fab{
+    position:absolute; left:50%; bottom:44px; transform:translateX(-50%);
+    width:64px; height:64px; border-radius:50%;
+    background:var(--ember); color:var(--white);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    box-shadow:0 10px 24px rgba(255,115,72,0.45);
+    border:4px solid var(--canvas);
+    cursor:pointer;
+  }
+  .sos-fab .msi{ font-size:15px; margin-bottom:1px; }
+  .sos-fab span.lbl{ font-size:15px; font-weight:800; letter-spacing:0.02em; }
+
+  /* screen fade */
+  .fade-in{ animation:fadein .18s ease; }
+  @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+
+  .backbar{ display:flex; align-items:center; gap:8px; padding:10px 0 14px; }
+  .backbtn{ width:32px;height:32px;border-radius:50%; background:var(--white); box-shadow:var(--shadow-card); display:flex;align-items:center;justify-content:center; border:none; cursor:pointer; color:var(--ink); }
+  .top-context{ font-size:12px; font-weight:700; color:var(--ink-70); }
+
+  .footnote{ font-size:11px; color:var(--ink-70); text-align:center; margin-top:10px; line-height:1.5; }
+
+  /* ---------- Fun bits: streak badge + confetti ---------- */
+  .streak-badge{
+    display:inline-flex; align-items:center; gap:5px;
+    background:var(--ink); color:white; border-radius:20px;
+    padding:6px 12px 6px 10px; font-size:12.5px; font-weight:800;
+  }
+  .streak-badge .msi{ font-size:16px; color:#FFB65C; }
+  .btn:active, .card[data-go]:active, .pill:active, .nav-tab:active, .sos-fab:active{ transform:scale(0.97); }
+  .btn, .pill, .nav-tab, .sos-fab{ transition: transform .08s ease; }
+  .check-dot{ transition: transform .18s cubic-bezier(.34,1.56,.64,1), background .15s ease, border-color .15s ease; cursor:pointer; }
+  .check-dot.pop{ transform: scale(1.25); }
+  .toast{
+    position:absolute; left:50%; top:54px; transform:translateX(-50%) translateY(-12px);
+    background:var(--ink); color:white; font-size:12.5px; font-weight:700;
+    padding:9px 16px; border-radius:20px; box-shadow:0 8px 20px rgba(0,0,0,0.25);
+    display:flex; align-items:center; gap:6px; opacity:0; pointer-events:none;
+    transition: opacity .2s ease, transform .2s ease; z-index:50; white-space:nowrap;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast .msi{ font-size:16px; color:#FFB65C; }
+  .confetti-piece{
+    position:absolute; top:-10px; width:7px; height:10px; border-radius:2px;
+    animation: confetti-fall 900ms ease-in forwards; z-index:60; pointer-events:none;
+  }
+  @keyframes confetti-fall{
+    to{ transform: translateY(240px) rotate(320deg); opacity:0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="rig">
+  <div class="nav-rail">
+    <div class="brand"><span class="msi">emergency_home</span><h4>Humanaut SOS</h4></div>
+    <div class="sub">Clickable prototype — every screen from the deck. Click any item to jump, or use the app itself to click through the real flow.</div>
+
+    <div class="nav-group-label">Setup &amp; Home</div>
+    <button class="nav-item" data-go="home"><span class="msi">home</span> Home / Daily view</button>
+    <button class="nav-item" data-go="onboarding"><span class="msi">how_to_reg</span> Account setup</button>
+
+    <div class="nav-group-label">The SOS Button</div>
+    <button class="nav-item" data-go="sos-menu"><span class="msi">emergency</span> SOS → choose path</button>
+    <button class="nav-item" data-go="rails"><span class="msi">warning</span> Off the Rails — options</button>
+    <button class="nav-item" data-go="planned"><span class="msi">event</span> Assistance Needed (planned)</button>
+
+    <div class="nav-group-label">Reinforcement types</div>
+    <button class="nav-item" data-go="why"><span class="msi">favorite</span> Remember Your Why</button>
+    <button class="nav-item" data-go="hardtruths"><span class="msi">bolt</span> Hard Truths</button>
+    <button class="nav-item" data-go="stats"><span class="msi">monitoring</span> The Numbers</button>
+    <button class="nav-item" data-go="rewards"><span class="msi">redeem</span> Small Wins (rewards)</button>
+    <button class="nav-item" data-go="food"><span class="msi">nutrition</span> Better Choices (swaps)</button>
+    <button class="nav-item" data-go="coachcall"><span class="msi">call</span> Talk to Someone</button>
+    <button class="nav-item" data-go="messages"><span class="msi">chat</span> Coach messages</button>
+    <button class="nav-item" data-go="journal"><span class="msi">edit_note</span> Daily journal</button>
+    <button class="nav-item" data-go="community"><span class="msi">groups</span> Community support</button>
+
+    <div class="nav-group-label">Follow-up</div>
+    <button class="nav-item" data-go="followup"><span class="msi">schedule</span> 24-hour check-in</button>
+
+    <div class="nav-group-label">Other tools</div>
+    <button class="nav-item" data-go="challenge"><span class="msi">emoji_events</span> Group challenge</button>
+    <button class="nav-item" data-go="restaurant"><span class="msi">restaurant</span> Restaurant finder</button>
+    <button class="nav-item" data-go="alias"><span class="msi">swap_horiz</span> Food alias swap</button>
+  </div>
+
+  <div class="phone-shell">
+    <div class="phone-screen">
+      <div class="statusbar">
+        <span>9:41</span>
+        <span style="display:flex; gap:6px; align-items:center;">
+          <span class="msi" style="font-size:16px;">signal_cellular_alt</span>
+          <span class="msi" style="font-size:16px;">wifi</span>
+          <span class="msi" style="font-size:16px;">battery_full</span>
+        </span>
+      </div>
+      <div class="screen-body" id="screen-body"></div>
+      <div class="toast" id="toast"><span class="msi">local_fire_department</span><span id="toast-text"></span></div>
+      <div class="bottomnav" id="bottomnav"></div>
+      <div class="sos-fab" data-go="sos-menu">
+        <span class="msi">emergency</span>
+        <span class="lbl">SOS</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {
+  screen: 'home',
+  history: [],
+  streak: 12,
+  goals: ["Lose 22 pounds","Reduce body fat below 20%","Increase muscle mass by 10%+","Enjoy my diet and be social"],
+  daily: [
+    {t:"Move over 10,000 steps", d:true},
+    {t:"Consume 180g of protein", d:true},
+    {t:"Five servings of vegetables", d:false},
+    {t:"Daily workout", d:true},
+    {t:"No alcohol or sweets after 7pm", d:false},
+  ],
+  whyFailed: ["Didn't ask for help","Didn't have a plan","Didn't know the consequences of what I was eating"],
+  kryptonite: ["Ice cream","Cheese","Desserts","Bread","Oversized portions"],
+  journalPrev: [
+    {mood:"good", txt:"Lost 6 pounds and I'm sleeping better than ever. Haven't had heartburn in 2 weeks."},
+    {mood:"good", txt:"Had a craving for ice cream. Had an apple instead. It was delicious and satisfied the craving."},
+  ]
+};
+
+function nav(id){
+  if(id !== state.screen){ state.history.push(state.screen); }
+  state.screen = id;
+  render();
+  document.getElementById('screen-body').scrollTop = 0;
+}
+function back(){
+  const prev = state.history.pop();
+  state.screen = prev || 'home';
+  render();
+}
+
+const NAV_TABS = [
+  {id:'home', label:'Home', icon:'home'},
+  {id:'journal', label:'Activity', icon:'edit_note'},
+  {id:'community', label:'Community', icon:'groups'},
+  {id:'onboarding', label:'Profile', icon:'person'},
+];
+
+function renderBottomNav(){
+  const el = document.getElementById('bottomnav');
+  el.innerHTML = NAV_TABS.map(t => `
+    <button class="nav-tab ${state.screen===t.id?'active':''}" data-go="${t.id}">
+      <span class="msi">${t.icon}</span>${t.label}
+    </button>
+  `).join('');
+}
+
+function backbar(label){
+  return `<div class="backbar"><button class="backbtn" data-back="1"><span class="msi">arrow_back</span></button><span class="top-context">${label}</span></div>`;
+}
+
+/* ---------------- SCREEN TEMPLATES ---------------- */
+
+const screens = {};
+
+screens.home = () => `
+  <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+    <div>
+      <div class="eyebrow">Today</div>
+      <div class="screen-title">Good morning, Jim</div>
+    </div>
+    <div class="streak-badge"><span class="msi">local_fire_department</span>${state.streak}-day streak</div>
+  </div>
+  <div class="screen-sub">Here's what matters today. Tap the SOS button any time you need backup.</div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h4 style="font-size:16px;">My daily tasks</h4>
+      <span class="editable"><span class="msi">edit</span>Edit</span>
+    </div>
+    <div class="divider" style="margin:10px 0;"></div>
+    ${state.daily.map((item,i) => `
+      <div class="checkitem">
+        <div class="check-dot ${item.d?'done':''}" data-toggle-task="${i}">${item.d?'<span class="msi" style="font-size:14px;">check</span>':''}</div>
+        <span style="font-size:13.5px; ${item.d?'color:var(--ink-70); text-decoration:line-through;':''}">${item.t}</span>
+      </div>
+    `).join('')}
+  </div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h4 style="font-size:16px;">My goals</h4>
+      <span class="editable"><span class="msi">edit</span>Edit</span>
+    </div>
+    <div class="divider" style="margin:10px 0;"></div>
+    ${state.goals.map(g => `<div class="list-item"><div class="ic-badge"><span class="msi">flag</span></div><span style="font-size:13.5px;">${g}</span></div>`).join('')}
+  </div>
+
+  <div class="card" style="background:var(--ink); color:var(--white);">
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div class="ic-badge dark" style="background:var(--ember);"><span class="msi">emergency</span></div>
+      <div>
+        <div style="font-weight:700; font-size:14.5px;">Feeling shaky, or something coming up?</div>
+        <div style="font-size:12.5px; color:#C7CBCC;">Tap the SOS button below — day or night.</div>
+      </div>
+    </div>
+  </div>
+`;
+
+screens.onboarding = () => `
+  <div class="eyebrow">Step 1 of 2</div>
+  <div class="screen-title">Set up your account</div>
+  <div class="screen-sub">This is what SOS uses to personalize every intervention.</div>
+
+  <div class="card">
+    <h4 style="font-size:15px; margin-bottom:10px;">About you</h4>
+    ${['Name','Age','Contact info'].map(f=>`<div class="list-item"><div class="ic-badge mute"><span class="msi">person</span></div><span style="font-size:13.5px;">${f}</span><span class="editable"><span class="msi">chevron_right</span></span></div>`).join('')}
+  </div>
+
+  <div class="card">
+    <h4 style="font-size:15px; margin-bottom:10px;">Your goals &amp; why</h4>
+    <div class="list-item"><div class="ic-badge mute"><span class="msi">flag</span></div><span style="font-size:13.5px;">Top 3–4 goals</span><span class="editable"><span class="msi">chevron_right</span></span></div>
+    <div class="list-item"><div class="ic-badge mute"><span class="msi">favorite</span></div><span style="font-size:13.5px;">Why these matter to you</span><span class="editable"><span class="msi">chevron_right</span></span></div>
+    <div class="list-item"><div class="ic-badge mute"><span class="msi">history</span></div><span style="font-size:13.5px;">Why past attempts stalled</span><span class="editable"><span class="msi">chevron_right</span></span></div>
+  </div>
+
+  <div class="card">
+    <h4 style="font-size:15px; margin-bottom:10px;">How you want to be motivated</h4>
+    <div class="pill-row">
+      <div class="pill active">Remember why</div>
+      <div class="pill">The numbers</div>
+      <div class="pill">Rewards</div>
+      <div class="pill">A live call</div>
+    </div>
+    <div class="screen-sub" style="margin:10px 0 0;">Choose which reinforcement types SOS should lead with when you reach out.</div>
+  </div>
+
+  <div class="card">
+    <h4 style="font-size:15px; margin-bottom:10px;">Your people</h4>
+    <div class="screen-sub" style="margin-bottom:10px;">Accountability partners SOS can reach on your behalf.</div>
+    <button class="btn btn-ghost"><span class="msi">person_add</span> Add a loved one</button>
+  </div>
+
+  <button class="btn btn-primary" data-go="home">Save &amp; continue</button>
+`;
+
+screens['sos-menu'] = () => `
+  <div style="text-align:center; padding-top:6px;">
+    <div class="ic-badge" style="width:64px;height:64px;border-radius:20px; margin:0 auto 14px; background:var(--ember-tint);">
+      <span class="msi" style="font-size:32px;">emergency</span>
+    </div>
+    <div class="screen-title">Push in case of emergency</div>
+    <div class="screen-sub">Two ways to use SOS — pick what's true right now.</div>
+  </div>
+
+  <div class="card" data-go="rails" style="cursor:pointer; border:1.5px solid var(--ember);">
+    <div style="display:flex; gap:12px; align-items:flex-start;">
+      <div class="ic-badge" style="background:var(--ember); color:white;"><span class="msi">bolt</span></div>
+      <div>
+        <div style="font-weight:700; font-size:15px;">Help! I'm about to go off the rails</div>
+        <div class="screen-sub" style="margin:2px 0 0;">Urgent, immediate support — something's happening right now.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-go="planned" style="cursor:pointer;">
+    <div style="display:flex; gap:12px; align-items:flex-start;">
+      <div class="ic-badge mute"><span class="msi">event</span></div>
+      <div>
+        <div style="font-weight:700; font-size:15px;">Assistance needed for a planned event</div>
+        <div class="screen-sub" style="margin:2px 0 0;">A holiday, celebration, or moment you can see coming.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+  <h4 style="font-size:14px; margin-bottom:8px;">Quick reminder</h4>
+  <div class="card">
+    <div style="font-size:13px; color:var(--ink-70); margin-bottom:6px;">Your goal right now:</div>
+    <div style="font-weight:700; font-size:14.5px;">${state.goals[0]}</div>
+  </div>
+`;
+
+screens.rails = () => `
+  ${backbar('SOS')}
+  <div class="eyebrow">Urgent support</div>
+  <div class="screen-title">Help! I'm about to go off the rails</div>
+  <div class="screen-sub">Choose what's most likely to help you right now. We'll get you back on track — no downward spirals.</div>
+
+  ${[
+    {id:'why', icon:'favorite', title:'Remember Your Why', sub:'Your goals and reasons, front and center.'},
+    {id:'hardtruths', icon:'bolt', title:'Hard Truths', sub:'No cheerleading. Your own stakes, stated plainly.'},
+    {id:'stats', icon:'monitoring', title:'The Numbers', sub:'What the research says, plainly stated.'},
+    {id:'rewards', icon:'redeem', title:'Small Wins', sub:'See how close you are to your next reward.'},
+    {id:'food', icon:'nutrition', title:'Better Choices', sub:'Swap suggestions for your usual slip-up foods.'},
+    {id:'coachcall', icon:'call', title:'Talk to Someone', sub:'A live call from a coach or a loved one.'},
+    {id:'messages', icon:'chat', title:'Coach Messages', sub:'A short message from your coach style of choice.'},
+  ].map(o => `
+    <div class="card" data-go="${o.id}" style="cursor:pointer;">
+      <div style="display:flex; gap:12px; align-items:center;">
+        <div class="ic-badge"><span class="msi">${o.icon}</span></div>
+        <div style="flex:1;">
+          <div style="font-weight:700; font-size:14.5px;">${o.title}</div>
+          <div style="font-size:12.5px; color:var(--ink-70);">${o.sub}</div>
+        </div>
+        <span class="msi" style="color:var(--ink-30);">chevron_right</span>
+      </div>
+    </div>
+  `).join('')}
+`;
+
+screens.planned = () => `
+  ${backbar('SOS')}
+  <div class="eyebrow">Planned event</div>
+  <div class="screen-title">Let's plan ahead</div>
+  <div class="screen-sub">We have time here. We're not trying to stop this — just help you make a few smart calls.</div>
+
+  <div class="card">
+    <h4 style="font-size:14.5px; margin-bottom:10px;">What's coming up?</h4>
+    <div class="pill-row">
+      <div class="pill active">Holiday meal</div>
+      <div class="pill">Celebration</div>
+      <div class="pill">Travel</div>
+      <div class="pill">Other</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4 style="font-size:14.5px; margin-bottom:6px;">Suggestions for this event</h4>
+    <div class="list-item"><div class="ic-badge mute"><span class="msi">restaurant</span></div><span style="font-size:13.5px;">Eat a protein-forward snack before you arrive.</span></div>
+    <div class="list-item"><div class="ic-badge mute"><span class="msi">local_bar</span></div><span style="font-size:13.5px;">Pick one drink you'll actually enjoy, and stop there.</span></div>
+    <div class="list-item"><div class="ic-badge mute"><span class="msi">chat</span></div><span style="font-size:13.5px;">Tell one person there what you're working on.</span></div>
+  </div>
+
+  <button class="btn btn-primary" data-go="followup">Set a check-in for tomorrow</button>
+`;
+
+screens.why = () => `
+  ${backbar('Remember Your Why')}
+  <div class="eyebrow">Remember your why</div>
+  <div class="screen-title">You know what it takes</div>
+  <div class="screen-sub">You've done hard things before. Here's what you're working toward, and why.</div>
+
+  <div class="card" style="background:var(--ember-tint); border:none;">
+    <div style="font-size:13px; font-weight:700; color:var(--ember-dark); margin-bottom:6px;">Your top reason</div>
+    <div style="font-size:16px; font-weight:700;">"${state.goals[3]}"</div>
+  </div>
+
+  <h4 style="font-size:14px; margin:16px 0 8px;">Photos that motivate you</h4>
+  <div class="grid-3">
+    <div class="photo-tile"><span class="msi" style="font-size:26px;">photo_camera</span></div>
+    <div class="photo-tile"><span class="msi" style="font-size:26px;">favorite</span></div>
+    <div class="photo-tile add"><span class="msi" style="font-size:22px;">add</span></div>
+  </div>
+  <div class="footnote">Upload up to 20 photos — the goal weight you hit before, a hard thing you finished, someone you admire. They rotate so it never feels stale.</div>
+
+  <div class="divider"></div>
+  <h4 style="font-size:14px; margin-bottom:8px;">Why you've struggled before</h4>
+  <div class="card">
+    ${state.whyFailed.map(w=>`<div class="list-item"><div class="ic-badge mute"><span class="msi">info</span></div><span style="font-size:13px;">${w}</span></div>`).join('')}
+  </div>
+
+  <button class="btn btn-primary" data-go="followup">I'm okay — back on track</button>
+`;
+
+screens.hardtruths = () => `
+  ${backbar('Hard Truths')}
+  <div class="eyebrow">No cheerleading</div>
+  <div class="screen-title">You said this mattered. So look at it.</div>
+  <div class="screen-sub">Your photos. Your words. No system-generated captions — just what you told us was the point.</div>
+
+  <div class="quote-card" style="margin-bottom:14px;">
+    <div class="tag" style="background:rgba(255,255,255,0.15); color:white; margin-bottom:10px;">Coach Marcus — no filter</div>
+    <div class="qtxt">"You picked these photos. You wrote those words. Nobody's making you look — you already decided this was worth looking at. So look. Then put the fork down and prove yourself right."</div>
+  </div>
+
+  <div class="card" style="background:var(--ink); color:white; margin-bottom:14px;">
+    <div style="font-size:12px; font-weight:700; color:#C7CBCC; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.06em;">Your call, not ours</div>
+    <div style="font-size:13.5px; line-height:1.5;">Pick whatever photos actually move you — a moment you're proud of, or one you never want to see again. Either works. You choose the photo, you choose the tag, you write the caption. We don't generate any of it.</div>
+  </div>
+
+  <h4 style="font-size:14px; margin-bottom:8px;">Your photos, your captions</h4>
+
+  <div class="card">
+    <div style="display:flex; gap:12px;">
+      <div class="photo-tile" style="width:84px; height:84px; flex-shrink:0;"><span class="msi" style="font-size:26px;">photo_camera</span></div>
+      <div style="flex:1;">
+        <span class="tag" style="margin-bottom:5px;"><span class="msi" style="font-size:12px;">favorite</span>You tagged: proud of this</span>
+        <div style="font-size:11px; font-weight:700; color:var(--ink-70); margin:6px 0 3px;">YOUR CAPTION</div>
+        <div style="font-size:13.5px; font-weight:700; line-height:1.35;">"Walking my daughter down the aisle without stopping to catch my breath."</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; gap:12px;">
+      <div class="photo-tile" style="width:84px; height:84px; flex-shrink:0; background:linear-gradient(135deg,#DADDDE,#EDEDEC);"><span class="msi" style="font-size:26px; color:var(--ink-70);">photo_camera</span></div>
+      <div style="flex:1;">
+        <span class="tag" style="margin-bottom:5px;"><span class="msi" style="font-size:12px;">block</span>You tagged: never again</span>
+        <div style="font-size:11px; font-weight:700; color:var(--ink-70); margin:6px 0 3px;">YOUR CAPTION</div>
+        <div style="font-size:13.5px; font-weight:700; line-height:1.35;">"The night before my physical, dreading the scale. Not doing that again."</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="border:1.5px dashed var(--ink-30); background:transparent; box-shadow:none;">
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div class="photo-tile add" style="width:84px; height:84px; flex-shrink:0;"><span class="msi" style="font-size:22px;">add</span></div>
+      <div style="flex:1;">
+        <div style="font-size:13px; color:var(--ink-70); margin-bottom:8px;">Add a photo — proud of it, or never want to repeat it, your call. Tag it, then write your own caption.</div>
+        <div class="pill-row" style="margin-bottom:8px;">
+          <div class="pill">Proud of this</div>
+          <div class="pill">Never again</div>
+        </div>
+        <button class="btn btn-ghost btn-sm">Upload photo</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footnote">Every photo, every tag, and every caption here is chosen and written by you. Nothing is generated for you, and nothing here judges how you look — only what you told us it means to you.</div>
+
+  <button class="btn btn-dark" style="margin-top:14px;" data-go="followup">Okay. Back on track.</button>
+`;
+
+screens.stats = () => `
+  ${backbar('The Numbers')}
+  <div class="eyebrow">Statistical reinforcement</div>
+  <div class="screen-title">What the research says</div>
+  <div class="screen-sub">Plain facts about metabolic health — no spin, just what's true.</div>
+
+  <div class="card">
+    <div class="stat-num">27%</div>
+    <div style="font-size:13.5px; font-weight:700; margin-top:4px;">Higher heart attack risk</div>
+    <div style="font-size:12.5px; color:var(--ink-70); margin-top:2px;">Carrying extra weight can raise cardiovascular risk by more than a quarter, even in people who are otherwise healthy.</div>
+  </div>
+  <div class="card">
+    <div class="stat-num">17%</div>
+    <div style="font-size:13.5px; font-weight:700; margin-top:4px;">Per unit of BMI</div>
+    <div style="font-size:12.5px; color:var(--ink-70); margin-top:2px;">Each one-unit rise in BMI is associated with roughly a 17% increase in heart failure risk.</div>
+  </div>
+  <div class="card">
+    <div class="stat-num">2×</div>
+    <div style="font-size:13.5px; font-weight:700; margin-top:4px;">Heart's workload</div>
+    <div style="font-size:12.5px; color:var(--ink-70); margin-top:2px;">Every extra pound means your heart pumps more blood, with greater force, to circulate through fat tissue.</div>
+  </div>
+  <div class="footnote">You can curate your own stat list, or let SOS rotate from the research library — up to 20 at a time.</div>
+`;
+
+screens.rewards = () => `
+  ${backbar('Small Wins')}
+  <div class="eyebrow">Rewards reinforcement</div>
+  <div class="screen-title">You're closer than you think</div>
+  <div class="screen-sub">Milestones you set for yourself — tangible, meaningful, attainable.</div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div style="font-weight:700; font-size:14.5px;">Lose 10 pounds</div>
+      <span class="tag"><span class="msi" style="font-size:13px;">check_circle</span>Earned</span>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <div class="ic-badge dark"><span class="msi">checkroom</span></div>
+      <div style="font-size:13px; color:var(--ink-70);">A new shirt you picked out</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div style="font-weight:700; font-size:14.5px;">Lose 20 pounds</div>
+      <span class="tag">6 lbs to go</span>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <div class="ic-badge dark"><span class="msi">directions_car</span></div>
+      <div style="font-size:13px; color:var(--ink-70);">A weekend driving experience</div>
+    </div>
+  </div>
+
+  <button class="btn btn-ghost"><span class="msi">add</span> Add a new milestone reward</button>
+  <div class="footnote">Rewards can stay private, or be shared with your accountability partners and challenge group.</div>
+`;
+
+screens.food = () => `
+  ${backbar('Better Choices')}
+  <div class="eyebrow">Food alternatives</div>
+  <div class="screen-title">Your top 5 food kryptonite</div>
+  <div class="screen-sub">Tap one to see better options — built for the craving, not against it.</div>
+
+  <div class="pill-row">
+    ${state.kryptonite.map((f,i)=>`<div class="pill ${i===0?'active':''}">${f}</div>`).join('')}
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <div style="font-size:13px; color:var(--ink-70); margin-bottom:2px;">Instead of Ice Cream, try:</div>
+    <div class="divider" style="margin:8px 0;"></div>
+    ${['Apple with a little peanut butter','Protein shake with a few berries','Celery with almond butter','Frozen banana, blended'].map(f=>`
+      <div class="list-item"><div class="ic-badge"><span class="msi">nutrition</span></div><span style="font-size:13.5px;">${f}</span></div>
+    `).join('')}
+  </div>
+  <div class="footnote">Suggestions come from your nutritionist-reviewed library, or SOS can generate new ones as your cravings shift.</div>
+`;
+
+screens.coachcall = () => `
+  ${backbar('Talk to Someone')}
+  <div class="eyebrow">Live support</div>
+  <div class="screen-title">Choose who to hear from</div>
+  <div class="screen-sub">A real person, right now.</div>
+
+  <div class="card">
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div class="avatar">MK</div>
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:14.5px;">Coach Maya K.</div>
+        <div style="font-size:12px; color:var(--ink-70);"><span class="badge-dot"></span> Available now — nutrition coach</div>
+      </div>
+      <button class="btn btn-primary btn-sm" data-go="coachcall-active"><span class="msi">call</span></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div class="avatar" style="background:var(--canvas); color:var(--ink-70);">SD</div>
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:14.5px;">Sarah (sister)</div>
+        <div style="font-size:12px; color:var(--ink-70);">Your #1 accountability partner</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" data-go="coachcall-active"><span class="msi">videocam</span></button>
+    </div>
+  </div>
+
+  <div class="footnote">If no one's available, SOS automatically offers another reinforcement type instead — no dead ends.</div>
+`;
+
+screens['coachcall-active'] = () => `
+  <div style="text-align:center; padding-top:60px;">
+    <div class="avatar" style="width:96px; height:96px; font-size:30px; margin:0 auto 18px;">MK</div>
+    <div style="font-weight:700; font-size:19px;">Coach Maya K.</div>
+    <div style="font-size:13px; color:var(--ink-70); margin-top:2px;">Calling…</div>
+  </div>
+  <div style="position:absolute; bottom:120px; left:0; right:0; display:flex; justify-content:center; gap:24px;">
+    <button class="ic-badge" style="width:56px; height:56px; border-radius:50%; background:#E4453C; color:white; border:none;" data-go="followup"><span class="msi" style="font-size:26px;">call_end</span></button>
+    <button class="ic-badge" style="width:56px; height:56px; border-radius:50%; background:#3DBE6B; color:white; border:none;" data-go="coachcall-active"><span class="msi" style="font-size:26px;">call</span></button>
+  </div>
+`;
+
+screens.messages = () => `
+  ${backbar('Coach Messages')}
+  <div class="eyebrow">A message, when you need it</div>
+  <div class="screen-title">Pick your coach's style</div>
+  <div class="screen-sub">Same encouragement, different voice. Set a default, or choose in the moment.</div>
+
+  <div class="quote-card" style="margin-bottom:14px;">
+    <div class="tag" style="background:rgba(255,255,255,0.15); color:white; margin-bottom:10px;">Coach Marcus — Direct &amp; driven</div>
+    <div class="qtxt">"You don't stop because it's hard. You stop when you decide it's over — so don't decide that today."</div>
+  </div>
+
+  <div class="quote-card">
+    <div class="tag" style="background:rgba(255,255,255,0.15); color:white; margin-bottom:10px;">Coach Elena — Steady &amp; encouraging</div>
+    <div class="qtxt">"One choice doesn't undo your progress. You've already proven you can do hard things — this is just the next one."</div>
+  </div>
+
+  <div class="footnote">Messages rotate from a growing library, matched to whichever coach style you set as your default.</div>
+`;
+
+screens.journal = () => `
+  <div class="eyebrow">Daily check-in</div>
+  <div class="screen-title">Today's journal entry</div>
+  <div class="screen-sub">Two minutes. How did today actually go?</div>
+
+  <div class="card">
+    <div class="pill-row">
+      <div class="pill active">Good day</div>
+      <div class="pill">Tough day</div>
+      <div class="pill">Mixed</div>
+    </div>
+    <div style="margin-top:12px; background:var(--canvas); border-radius:12px; padding:14px; font-size:13px; color:var(--ink-70); min-height:64px;">
+      Type how the day went, how you're feeling, or what you're proud of…
+    </div>
+  </div>
+  <button class="btn btn-primary">Save entry</button>
+
+  <div class="divider"></div>
+  <h4 style="font-size:14px; margin-bottom:8px;">Past entries</h4>
+  ${state.journalPrev.map(j=>`
+    <div class="card">
+      <div style="display:flex; gap:10px; align-items:flex-start;">
+        <div class="ic-badge"><span class="msi">sentiment_satisfied</span></div>
+        <div style="font-size:13px; color:var(--ink-70); line-height:1.5;">"${j.txt}"</div>
+      </div>
+    </div>
+  `).join('')}
+`;
+
+screens.community = () => `
+  <div class="eyebrow">You're not doing this alone</div>
+  <div class="screen-title">Humanaut community</div>
+  <div class="screen-sub">People on the same road, cheering you on.</div>
+
+  <div class="card">
+    <div style="display:flex; gap:10px; align-items:center;">
+      <div class="avatar">RT</div>
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:13.5px;">Rachel T.</div>
+        <div style="font-size:12.5px; color:var(--ink-70);">"You got this. We're all behind you. Love your progress!"</div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex; gap:10px; align-items:center;">
+      <div class="avatar" style="background:var(--canvas); color:var(--ink-70);">DP</div>
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:13.5px;">David P.</div>
+        <div style="font-size:12.5px; color:var(--ink-70);">"Day 42 here too. One bad meal isn't a bad month. Keep going."</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-go="challenge" style="cursor:pointer; background:var(--ink); color:white;">
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div class="ic-badge" style="background:var(--ember);"><span class="msi">emoji_events</span></div>
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:14px;">Join a weight-loss challenge</div>
+        <div style="font-size:12px; color:#C7CBCC;">3 friends are already in one</div>
+      </div>
+      <span class="msi">chevron_right</span>
+    </div>
+  </div>
+`;
+
+screens.followup = () => `
+  <div class="eyebrow">24 hours later</div>
+  <div class="screen-title">Checking in</div>
+  <div class="screen-sub">One day since you reached out. Here's what matters right now.</div>
+
+  <div class="card">
+    <div class="list-item"><div class="ic-badge"><span class="msi">flag</span></div><span style="font-size:13.5px;">Reminder: ${state.goals[0]}</span></div>
+    <div class="list-item"><div class="ic-badge"><span class="msi">monitoring</span></div><span style="font-size:13.5px;">One off day rarely undoes weeks of progress — but a string of them can.</span></div>
+    <div class="list-item"><div class="ic-badge"><span class="msi">nutrition</span></div><span style="font-size:13.5px;">Tip: lean on protein today to steady things out.</span></div>
+    <div class="list-item"><div class="ic-badge"><span class="msi">restaurant</span></div><span style="font-size:13.5px;">Tonight's recipe: sheet-pan salmon &amp; greens</span></div>
+  </div>
+
+  <div class="card" style="background:var(--ember-tint);">
+    <div style="font-weight:700; font-size:14px;">You showed up when it mattered.</div>
+    <div style="font-size:12.5px; color:var(--ink-70); margin-top:2px;">That's the actual skill. Let's keep the streak going.</div>
+  </div>
+
+  <button class="btn btn-primary" data-go="home">Back to today</button>
+`;
+
+screens.challenge = () => `
+  ${backbar('Group challenge')}
+  <div class="eyebrow">Other tools</div>
+  <div class="screen-title">Create a group challenge</div>
+  <div class="screen-sub">Pull together a group, set the rules, and stay accountable together.</div>
+
+  <div class="card">
+    <h4 style="font-size:14px; margin-bottom:8px;">Challenge rules</h4>
+    <div class="list-item"><div class="ic-badge mute"><span class="msi">timer</span></div><span style="font-size:13.5px;">30-day duration</span></div>
+    <div class="list-item"><div class="ic-badge mute"><span class="msi">scale</span></div><span style="font-size:13.5px;">Log weight daily</span></div>
+    <div class="list-item"><div class="ic-badge mute"><span class="msi">block</span></div><span style="font-size:13.5px;">Miss 3 days in a row → eliminated</span></div>
+  </div>
+
+  <div class="card">
+    <h4 style="font-size:14px; margin-bottom:8px;">Prize pool</h4>
+    <div style="font-size:13px; color:var(--ink-70); margin-bottom:10px;">Everyone contributes $20 — winner takes the pool.</div>
+    <div class="stat-num" style="font-size:28px;">$140</div>
+    <div style="font-size:12px; color:var(--ink-70);">7 people in so far</div>
+  </div>
+
+  <button class="btn btn-primary">Invite friends</button>
+`;
+
+screens.restaurant = () => `
+  ${backbar('Restaurant finder')}
+  <div class="eyebrow">Other tools</div>
+  <div class="screen-title">Best choices, your favorite spots</div>
+  <div class="screen-sub">We scan the menu and rank it against your goals.</div>
+
+  <div class="card">
+    <div style="font-weight:700; font-size:14.5px; margin-bottom:2px;">Cielo Kitchen</div>
+    <div style="font-size:12px; color:var(--ink-70); margin-bottom:10px;">Filtered for: 40g+ protein, under 700 cal</div>
+    <div class="list-item"><div class="ic-badge"><span class="msi">star</span></div><span style="font-size:13.5px;">Grilled branzino, roasted vegetables — 42g protein</span></div>
+    <div class="list-item"><div class="ic-badge"><span class="msi">star</span></div><span style="font-size:13.5px;">Chicken &amp; avocado salad, no dressing — 38g protein</span></div>
+  </div>
+  <div class="footnote">Add your top 10 restaurants and set your macro targets — SOS keeps the list ready for next time.</div>
+`;
+
+screens.alias = () => `
+  ${backbar('Food alias')}
+  <div class="eyebrow">Other tools</div>
+  <div class="screen-title">Food alias</div>
+  <div class="screen-sub">Enter a craving, get a swap that fits how far you want to flex.</div>
+
+  <div class="card">
+    <div style="font-size:12.5px; color:var(--ink-70); margin-bottom:4px;">Your craving</div>
+    <div style="font-weight:700; font-size:16px;">Apple Pie</div>
+  </div>
+
+  <div style="font-size:12.5px; font-weight:700; color:var(--ink-70); margin:14px 0 8px;">How healthy should the swap be?</div>
+  <div class="pill-row">
+    <div class="pill">A little better</div>
+    <div class="pill active">Mid</div>
+    <div class="pill">Very healthy</div>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div class="photo-tile" style="width:64px; height:64px; flex-shrink:0;"><span class="msi" style="font-size:24px;">nutrition</span></div>
+      <div>
+        <div style="font-weight:700; font-size:14.5px;">Baked apple with cinnamon</div>
+        <div style="font-size:12px; color:var(--ink-70);">Same comfort, a fraction of the sugar</div>
+      </div>
+    </div>
+  </div>
+  <button class="btn btn-ghost">See recipe</button>
+`;
+
+/* ---------------- RENDER + EVENTS ---------------- */
+
+function render(){
+  const body = document.getElementById('screen-body');
+  const fn = screens[state.screen] || screens.home;
+  body.innerHTML = `<div class="fade-in">${fn()}</div>`;
+  renderBottomNav();
+
+  document.querySelectorAll('.nav-item').forEach(b=>{
+    b.classList.toggle('active', b.dataset.go === state.screen);
+  });
+}
+
+document.addEventListener('click', (e)=>{
+  const goEl = e.target.closest('[data-go]');
+  const toggleEl = e.target.closest('[data-toggle-task]');
+  if(toggleEl){
+    const idx = Number(toggleEl.dataset.toggleTask);
+    const item = state.daily[idx];
+    item.d = !item.d;
+    if(item.d){
+      toggleEl.classList.add('pop');
+      spawnConfetti(toggleEl);
+      const doneCount = state.daily.filter(t=>t.d).length;
+      const lines = [
+        "Nice. One less thing to think about.",
+        "That's the streak talking.",
+        "Small win. Those add up.",
+        "Look at you go.",
+      ];
+      showToast(doneCount===state.daily.length ? "All done — that's a clean sweep!" : lines[idx % lines.length]);
+    }
+    render();
+    return;
+  }
+  if(goEl){
+    if(goEl.dataset.go === 'followup' || goEl.id === 'earn-reward'){
+      showToast("Nice work getting back on track.");
+    }
+    nav(goEl.dataset.go);
+    return;
+  }
+  const backEl = e.target.closest('[data-back]');
+  if(backEl){ back(); return; }
+});
+
+let toastTimer;
+function showToast(text){
+  const t = document.getElementById('toast');
+  document.getElementById('toast-text').textContent = text;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
+}
+
+function spawnConfetti(originEl){
+  const screen = document.querySelector('.phone-screen');
+  const rect = originEl.getBoundingClientRect();
+  const screenRect = screen.getBoundingClientRect();
+  const colors = ['#FF7348','#FFB65C','#3DBE6B','#141B1D','#FFDCD1'];
+  for(let i=0;i<14;i++){
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    piece.style.left = (rect.left - screenRect.left + rect.width/2 + (Math.random()*40-20)) + 'px';
+    piece.style.top = (rect.top - screenRect.top) + 'px';
+    piece.style.background = colors[Math.floor(Math.random()*colors.length)];
+    piece.style.animationDuration = (700 + Math.random()*400) + 'ms';
+    piece.style.transform = `rotate(${Math.random()*360}deg)`;
+    screen.appendChild(piece);
+    setTimeout(()=> piece.remove(), 1300);
+  }
+}
+
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+// Humanaut SOS — data model (v0.1 draft)
+// This is a starting point, not a final schema. Expect to revise once
+// auth provider and photo-storage provider are chosen (see SPEC.md).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  goals          Goal[]
+  dailyTasks     DailyTask[]
+  journalEntries JournalEntry[]
+  photos         ReinforcementPhoto[]
+  rewards        Reward[]
+  accountability AccountabilityContact[]
+  sosEvents      SosEvent[]
+  streak         Int      @default(0)
+}
+
+model Goal {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  label  String
+  order  Int    @default(0)
+}
+
+model DailyTask {
+  id     String  @id @default(cuid())
+  userId String
+  user   User    @relation(fields: [userId], references: [id])
+  label  String
+  done   Boolean @default(false)
+  date   DateTime @default(now())
+}
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  mood      String   // "good" | "tough" | "mixed"
+  text      String
+  createdAt DateTime @default(now())
+}
+
+// Covers both "Remember Your Why" and "Hard Truths" reinforcement types.
+// tag distinguishes the two: user always chooses the photo AND writes the caption.
+model ReinforcementPhoto {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  storageKey String  // signed URL reference into Supabase Storage (private bucket)
+  caption   String   // always user-written — never system-generated
+  tag       String   // "proud_of_this" | "never_again" (user-selected, Hard Truths only)
+  mode      String   // "remember_why" | "hard_truths"
+  createdAt DateTime @default(now())
+}
+
+model Reward {
+  id          String  @id @default(cuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id])
+  milestone   String  // e.g. "Lose 20 pounds"
+  rewardLabel String  // e.g. "A weekend driving experience"
+  earned      Boolean @default(false)
+}
+
+model AccountabilityContact {
+  id          String  @id @default(cuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id])
+  name        String
+  contactInfo String
+  priority    Int     @default(0)
+  optedIn     Boolean @default(false) // loved one must accept T&Cs before being callable
+}
+
+// One row per SOS button press — this is the data you'll want for
+// "does this feature actually reduce relapse" analysis later.
+model SosEvent {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  path       String   // "off_the_rails" | "planned_event"
+  reinforcement String? // which reinforcement type they picked
+  createdAt  DateTime @default(now())
+  followUpAt DateTime? // scheduled 24h check-in
+}
