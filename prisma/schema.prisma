@@ -1,21 +1,29 @@
-// Humanaut SOS — data model (v0.1 draft)
-// This is a starting point, not a final schema. Expect to revise once
-// auth provider and photo-storage provider are chosen (see SPEC.md).
+// Humanaut SOS — Supabase Postgres
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  age         String?
+  contactInfo String?
+  whyMatters  String?
+  motivators  String   @default("Remember why")
+  coachStyle  String   @default("marcus")
+  lastCraving String?
+  lastFlex    String   @default("Mid")
+  streak      Int      @default(0)
+  createdAt   DateTime @default(now())
 
   goals          Goal[]
   dailyTasks     DailyTask[]
@@ -24,75 +32,150 @@ model User {
   rewards        Reward[]
   accountability AccountabilityContact[]
   sosEvents      SosEvent[]
-  streak         Int      @default(0)
+  pastAttempts   PastAttempt[]
+  kryptonite     KryptoniteFood[]
+  communityPosts CommunityPost[]
+  restaurants    FavoriteRestaurant[]
+  challenges     Challenge[]
+  aliases        FoodAlias[]
 }
 
 model Goal {
   id     String @id @default(cuid())
   userId String
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   label  String
   order  Int    @default(0)
 }
 
 model DailyTask {
-  id     String  @id @default(cuid())
+  id     String   @id @default(cuid())
   userId String
-  user   User    @relation(fields: [userId], references: [id])
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   label  String
-  done   Boolean @default(false)
+  done   Boolean  @default(false)
   date   DateTime @default(now())
 }
 
 model JournalEntry {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  mood      String   // "good" | "tough" | "mixed"
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mood      String
   text      String
   createdAt DateTime @default(now())
 }
 
-// Covers both "Remember Your Why" and "Hard Truths" reinforcement types.
-// tag distinguishes the two: user always chooses the photo AND writes the caption.
+model PastAttempt {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label  String
+}
+
+// User always chooses the photo AND writes the caption.
 model ReinforcementPhoto {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  storageKey String  // signed URL reference into Supabase Storage (private bucket)
-  caption   String   // always user-written — never system-generated
-  tag       String   // "proud_of_this" | "never_again" (user-selected, Hard Truths only)
-  mode      String   // "remember_why" | "hard_truths"
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storageKey String
+  caption    String
+  tag        String
+  mode       String
+  createdAt  DateTime @default(now())
 }
 
 model Reward {
   id          String  @id @default(cuid())
   userId      String
-  user        User    @relation(fields: [userId], references: [id])
-  milestone   String  // e.g. "Lose 20 pounds"
-  rewardLabel String  // e.g. "A weekend driving experience"
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  milestone   String
+  rewardLabel String
+  icon        String  @default("redeem")
+  statusLabel String?
   earned      Boolean @default(false)
 }
 
 model AccountabilityContact {
   id          String  @id @default(cuid())
   userId      String
-  user        User    @relation(fields: [userId], references: [id])
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   name        String
   contactInfo String
+  initials    String  @default("")
   priority    Int     @default(0)
-  optedIn     Boolean @default(false) // loved one must accept T&Cs before being callable
+  optedIn     Boolean @default(false)
 }
 
-// One row per SOS button press — this is the data you'll want for
-// "does this feature actually reduce relapse" analysis later.
 model SosEvent {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  path          String
+  reinforcement String?
+  createdAt     DateTime  @default(now())
+  followUpAt    DateTime?
+}
+
+model KryptoniteFood {
+  id     String           @id @default(cuid())
+  userId String
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label  String
+  order  Int              @default(0)
+  swaps  KryptoniteSwap[]
+}
+
+model KryptoniteSwap {
+  id     String         @id @default(cuid())
+  foodId String
+  food   KryptoniteFood @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  label  String
+}
+
+model CommunityPost {
   id         String   @id @default(cuid())
   userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  path       String   // "off_the_rails" | "planned_event"
-  reinforcement String? // which reinforcement type they picked
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  authorName String
+  initials   String
+  text       String
   createdAt  DateTime @default(now())
-  followUpAt DateTime? // scheduled 24h check-in
+}
+
+model FavoriteRestaurant {
+  id     String           @id @default(cuid())
+  userId String
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name   String
+  filter String
+  dishes RestaurantDish[]
+}
+
+model RestaurantDish {
+  id           String             @id @default(cuid())
+  restaurantId String
+  restaurant   FavoriteRestaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  label        String
+}
+
+model Challenge {
+  id           String  @id @default(cuid())
+  userId       String
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  durationDays Int     @default(30)
+  buyIn        Int     @default(20)
+  members      Int     @default(1)
+  invited      Boolean @default(false)
+}
+
+model FoodAlias {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  craving   String
+  level     String
+  swapTitle String
+  swapSub   String
+  createdAt DateTime @default(now())
 }

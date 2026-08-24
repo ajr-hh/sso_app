@@ -1,81 +1,65 @@
 import Link from "next/link";
+import { GoalList } from "@/components/goal-list";
+import { HomeGreeting } from "@/components/home-greeting";
+import { Icon } from "@/components/icon";
+import { TaskList } from "@/components/task-list";
+import { Card, Divider, Eyebrow, IconBadge, Screen, ScreenSub } from "@/components/ui";
+import { getAppUser } from "@/lib/user";
 
-// Placeholder data — replace with real data from Prisma once the schema lands (see prisma/schema.prisma)
-const dailyTasks = [
-  { id: 1, label: "Move over 10,000 steps", done: true },
-  { id: 2, label: "Consume 180g of protein", done: true },
-  { id: 3, label: "Five servings of vegetables", done: false },
-  { id: 4, label: "Daily workout", done: true },
-  { id: 5, label: "No alcohol or sweets after 7pm", done: false },
-];
+export const dynamic = "force-dynamic";
 
-const goals = [
-  "Lose 22 pounds",
-  "Reduce body fat below 20%",
-  "Increase muscle mass by 10%+",
-  "Enjoy my diet and be social",
-];
+export default async function HomePage() {
+  const user = await getAppUser();
 
-export default function HomePage() {
   return (
-    <main className="mx-auto w-full max-w-md px-5 pb-32 pt-6">
+    <Screen>
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-ember-dark">Today</p>
-          <h1 className="text-3xl leading-none">Good morning, Jim</h1>
+          <Eyebrow>Today</Eyebrow>
+          <HomeGreeting name={user.name} />
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-ink px-3 py-1.5 text-xs font-extrabold text-white">
-          🔥 12-day streak
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-ink py-1.5 pr-3 pl-2.5 text-[12.5px] font-extrabold text-white">
+          <Icon name="local_fire_department" className="text-[16px] text-[#FFB65C]" />
+          {user.streak}-day streak
         </span>
       </div>
-      <p className="mt-1 text-sm text-ink-70">
-        Here&rsquo;s what matters today. Tap SOS any time you need backup.
-      </p>
+      <ScreenSub>Here&rsquo;s what matters today. Tap the SOS button any time you need backup.</ScreenSub>
 
-      <section className="mt-5 rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="text-base font-bold">My daily tasks</h2>
-        <div className="mt-2 divide-y divide-canvas">
-          {dailyTasks.map((task) => (
-            <div key={task.id} className="flex items-center gap-3 py-2.5">
-              <span
-                className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border ${
-                  task.done ? "border-ember bg-ember text-white" : "border-ink-30"
-                }`}
-              >
-                {task.done && "✓"}
-              </span>
-              <span className={`text-sm ${task.done ? "text-ink-70 line-through" : ""}`}>
-                {task.label}
-              </span>
-            </div>
-          ))}
+      <Card>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base">My daily tasks</h2>
+          <Link href="/profile" className="flex items-center gap-0.5 text-[11px] font-bold text-ink-70">
+            <Icon name="edit" className="text-[14px]" />
+            Profile
+          </Link>
         </div>
-      </section>
+        <Divider className="my-2.5" />
+        <TaskList tasks={user.dailyTasks} />
+      </Card>
 
-      <section className="mt-3 rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="text-base font-bold">My goals</h2>
-        <div className="mt-2 space-y-2">
-          {goals.map((goal) => (
-            <div key={goal} className="flex items-center gap-3 text-sm">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ember-tint text-ember-dark">
-                🎯
-              </span>
-              {goal}
-            </div>
-          ))}
+      <Card>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base">My goals</h2>
+          <Link href="/profile" className="flex items-center gap-0.5 text-[11px] font-bold text-ink-70">
+            <Icon name="edit" className="text-[14px]" />
+            Profile
+          </Link>
         </div>
-      </section>
+        <Divider className="my-2.5" />
+        <GoalList goals={user.goals.map((goal) => ({ id: goal.id, label: goal.label }))} />
+      </Card>
 
-      <Link
-        href="/sos"
-        className="mt-3 flex items-center gap-3 rounded-2xl bg-ink p-4 text-white shadow-sm"
-      >
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ember">🆘</span>
-        <div>
-          <p className="text-sm font-bold">Feeling shaky, or something coming up?</p>
-          <p className="text-xs text-white/70">Tap SOS — day or night.</p>
+      <Link href="/sos" className="mb-3 block rounded-2xl bg-ink p-4 text-white shadow-card transition-transform active:scale-[0.97]">
+        <div className="flex items-center gap-3">
+          <IconBadge tone="ember-solid">
+            <Icon name="emergency" className="text-[18px]" />
+          </IconBadge>
+          <div>
+            <p className="text-[14.5px] font-bold">Feeling shaky, or something coming up?</p>
+            <p className="text-[12.5px] text-[#C7CBCC]">Tap the SOS button below — day or night.</p>
+          </div>
         </div>
       </Link>
-    </main>
+    </Screen>
   );
 }
