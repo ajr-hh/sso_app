@@ -2,11 +2,11 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { colors } from "../../../src/theme/colors";
 
-export default function HomeScreen() {
+export default function ProfileScreen() {
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>Home</Text>
-      <Text style={styles.body}>Your daily support will appear here.</Text>
+      <Text style={styles.title}>Profile</Text>
+      <Text style={styles.body}>Your profile settings will appear here.</Text>
     </View>
   );
 }
@@ -28,5 +28,6 @@ const styles = StyleSheet.create({
     color: colors.body,
     fontSize: 16,
     marginTop: 8,
+    textAlign: "center",
   },
 });

@@ -2,11 +2,10 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { colors } from "../../../src/theme/colors";
 
-export default function HomeScreen() {
+export default function SosScreen() {
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>Home</Text>
-      <Text style={styles.body}>Your daily support will appear here.</Text>
+      <Text style={styles.title}>SOS</Text>
     </View>
   );
 }
@@ -20,13 +19,8 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   title: {
-    color: colors.ink,
-    fontSize: 28,
-    fontWeight: "800",
-  },
-  body: {
-    color: colors.body,
-    fontSize: 16,
-    marginTop: 8,
+    color: colors.ember,
+    fontSize: 36,
+    fontWeight: "900",
   },
 });
