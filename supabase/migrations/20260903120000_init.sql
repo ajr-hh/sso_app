@@ -72,6 +72,12 @@ to authenticated
 using ((select auth.uid()) = id)
 with check ((select auth.uid()) = id);
 
+create policy "Authenticated members read profiles"
+on public.profiles
+for select
+to authenticated
+using (true);
+
 create policy "Members manage their own goals"
 on public.goals
 for all
