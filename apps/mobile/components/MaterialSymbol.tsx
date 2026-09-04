@@ -3,16 +3,21 @@ import { StyleSheet, Text } from "react-native";
 
 export type MaterialSymbolName =
   | "arrow_back"
+  | "delete"
   | "edit"
   | "edit_note"
   | "emergency"
   | "flag"
   | "groups"
   | "home"
-  | "person";
+  | "person"
+  | "sentiment_dissatisfied"
+  | "sentiment_neutral"
+  | "sentiment_satisfied";
 
 const glyphs: Readonly<Record<MaterialSymbolName, string>> = {
   arrow_back: "\u{E5C4}",
+  delete: "\u{E872}",
   edit: "\u{E3C9}",
   edit_note: "\u{E745}",
   emergency: "\u{E1EB}",
@@ -20,6 +25,9 @@ const glyphs: Readonly<Record<MaterialSymbolName, string>> = {
   groups: "\u{F233}",
   home: "\u{E88A}",
   person: "\u{E7FD}",
+  sentiment_dissatisfied: "\u{E811}",
+  sentiment_neutral: "\u{E812}",
+  sentiment_satisfied: "\u{E813}",
 };
 
 type MaterialSymbolProps = {

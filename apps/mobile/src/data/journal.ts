@@ -39,7 +39,7 @@ export async function fetchJournal(): Promise<JournalEntry[]> {
 }
 
 export async function addJournalEntry(
-  mood: JournalSentiment | string,
+  mood: JournalSentiment,
   body: string,
 ): Promise<void> {
   const userId = await requireUserId();

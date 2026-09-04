@@ -1,7 +1,8 @@
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,22 +12,34 @@ import {
 } from "react-native";
 
 import { ErrorBanner } from "../../../components/ErrorBanner";
+import { MaterialSymbol } from "../../../components/MaterialSymbol";
 import {
   addJournalEntry,
+  deleteJournalEntry,
   fetchJournal,
   type JournalEntry,
+  type JournalSentiment,
+  updateJournalEntry,
 } from "../../../src/data/journal";
 import { explainError } from "../../../src/lib/errors";
+import {
+  getJournalSentimentIcon,
+  normalizeJournalSentiment,
+} from "../../../src/presentation/journal";
 import { colors } from "../../../src/theme/colors";
 
-const MOODS = ["Steady", "Proud", "Struggling", "Hopeful"] as const;
+const MOODS = ["Good day", "Tough day", "Mixed"] as const;
 
 export default function JournalScreen() {
+  const scrollRef = useRef<ScrollView>(null);
+  const formY = useRef(0);
   const [entries, setEntries] = useState<JournalEntry[] | null>(null);
-  const [mood, setMood] = useState("");
+  const [mood, setMood] = useState<JournalSentiment | "">("");
   const [body, setBody] = useState("");
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -45,6 +58,61 @@ export default function JournalScreen() {
     useCallback(() => {
       void load();
     }, [load]),
+  );
+
+  const resetComposer = useCallback(() => {
+    setMood("");
+    setBody("");
+    setEditingEntryId(null);
+  }, []);
+
+  const beginEdit = useCallback((entry: JournalEntry) => {
+    setMood(normalizeJournalSentiment(entry.mood));
+    setBody(entry.body);
+    setEditingEntryId(entry.id);
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        animated: true,
+        y: Math.max(formY.current - 16, 0),
+      });
+    });
+  }, []);
+
+  const confirmDelete = useCallback(
+    (entry: JournalEntry) => {
+      Alert.alert(
+        "Delete journal entry?",
+        "This entry will be permanently deleted.",
+        [
+          { style: "cancel", text: "Cancel" },
+          {
+            style: "destructive",
+            text: "Delete",
+            onPress: () => {
+              void (async () => {
+                setDeletingEntryId(entry.id);
+                setError(null);
+                try {
+                  await deleteJournalEntry(entry.id);
+                  if (editingEntryId === entry.id) {
+                    resetComposer();
+                  }
+                  setEntries((current) =>
+                    current?.filter((item) => item.id !== entry.id) ?? null,
+                  );
+                  setEntries(await fetchJournal());
+                } catch (caughtError) {
+                  setError(explainError(caughtError));
+                } finally {
+                  setDeletingEntryId(null);
+                }
+              })();
+            },
+          },
+        ],
+      );
+    },
+    [editingEntryId, resetComposer],
   );
 
   if (loading && !entries) {
@@ -66,18 +134,27 @@ export default function JournalScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.screen} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={styles.screen}
+      keyboardDismissMode="interactive"
+      keyboardShouldPersistTaps="handled"
+      ref={scrollRef}
+    >
       <View style={styles.heading}>
         <Text style={styles.eyebrow}>DAILY CHECK-IN</Text>
         <Text style={styles.title}>Activity</Text>
-        <Text style={styles.body}>Name how today feels and capture what matters.</Text>
+        <Text style={styles.body}>Two minutes. How did today actually go?</Text>
       </View>
 
       {error ? <ErrorBanner message={error} /> : null}
       {loading ? <ActivityIndicator color={colors.ember} /> : null}
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>How are you feeling?</Text>
+      <View
+        onLayout={(event) => {
+          formY.current = event.nativeEvent.layout.y;
+        }}
+        style={styles.card}
+      >
         <View style={styles.moods}>
           {MOODS.map((option) => (
             <Pressable
@@ -95,21 +172,35 @@ export default function JournalScreen() {
           accessibilityLabel="Journal entry"
           multiline
           onChangeText={setBody}
-          placeholder="What happened today? What do you want to remember?"
+          placeholder="What happened today? What do you want to remember? How are you feeling? What are you proud of today?"
           style={styles.input}
           textAlignVertical="top"
           value={body}
         />
         <Button
           disabled={!mood || !body.trim() || saving}
-          label={saving ? "Saving…" : "Save check-in"}
+          label={
+            saving
+              ? editingEntryId
+                ? "Updating…"
+                : "Saving…"
+              : editingEntryId
+                ? "Update check-in"
+                : "Save check-in"
+          }
           onPress={async () => {
+            if (!mood) {
+              return;
+            }
             setSaving(true);
             setError(null);
             try {
-              await addJournalEntry(mood, body.trim());
-              setMood("");
-              setBody("");
+              if (editingEntryId) {
+                await updateJournalEntry(editingEntryId, mood, body.trim());
+              } else {
+                await addJournalEntry(mood, body.trim());
+              }
+              resetComposer();
               setEntries(await fetchJournal());
             } catch (caughtError) {
               setError(explainError(caughtError));
@@ -118,6 +209,19 @@ export default function JournalScreen() {
             }
           }}
         />
+        {editingEntryId ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={saving}
+            onPress={resetComposer}
+            style={({ pressed }) => [
+              styles.cancelButton,
+              pressed && styles.actionPressed,
+            ]}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={styles.listHeading}>
@@ -130,18 +234,66 @@ export default function JournalScreen() {
         </View>
       ) : (
         entries.map((entry) => (
-          <View key={entry.id} style={styles.card}>
-            <View style={styles.entryHeading}>
-              <Text style={styles.entryMood}>{entry.mood || "Check-in"}</Text>
-              <Text style={styles.entryDate}>
-                {new Date(entry.created_at).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-              </Text>
+          <View key={entry.id} style={[styles.card, styles.entryCard]}>
+            <View style={styles.entryIcon}>
+              <MaterialSymbol
+                color={colors.ember}
+                name={getJournalSentimentIcon(entry.mood)}
+                size={28}
+              />
             </View>
-            <Text style={styles.entryBody}>{entry.body}</Text>
+            <View style={styles.entryContent}>
+              <Text style={styles.entryBody}>{entry.body}</Text>
+              <View style={styles.entryFooter}>
+                <View style={styles.entryActions}>
+                  <Pressable
+                    accessibilityLabel="Edit journal entry"
+                    accessibilityRole="button"
+                    hitSlop={8}
+                    onPress={() => beginEdit(entry)}
+                    style={({ pressed }) => [
+                      styles.entryAction,
+                      pressed && styles.actionPressed,
+                    ]}
+                  >
+                    <MaterialSymbol color={colors.ink} name="edit" size={18} />
+                    <Text style={styles.entryActionText}>Edit</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel="Delete journal entry"
+                    accessibilityRole="button"
+                    disabled={deletingEntryId === entry.id}
+                    hitSlop={8}
+                    onPress={() => confirmDelete(entry)}
+                    style={({ pressed }) => [
+                      styles.entryAction,
+                      pressed && styles.actionPressed,
+                    ]}
+                  >
+                    {deletingEntryId === entry.id ? (
+                      <ActivityIndicator color={colors.ember} size="small" />
+                    ) : (
+                      <MaterialSymbol
+                        color={colors.ember}
+                        name="delete"
+                        size={18}
+                      />
+                    )}
+                    <Text style={styles.deleteActionText}>Delete</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.entryMeta}>
+                  {normalizeJournalSentiment(entry.mood)} ·{" "}
+                  {new Date(entry.created_at).toLocaleString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </Text>
+              </View>
+            </View>
           </View>
         ))
       )}
@@ -178,11 +330,20 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.canvas, borderColor: "#D7D9D9", borderRadius: 12, borderWidth: 1, color: colors.ink, fontSize: 16, minHeight: 128, padding: 14 },
   button: { alignItems: "center", backgroundColor: colors.ember, borderRadius: 12, justifyContent: "center", minHeight: 50, paddingHorizontal: 18 },
   buttonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  cancelButton: { alignItems: "center", justifyContent: "center", minHeight: 44 },
+  cancelButtonText: { color: colors.ink, fontSize: 15, fontWeight: "800" },
   disabled: { opacity: 0.45 },
   listHeading: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
   entryCount: { backgroundColor: colors.emberTint, borderRadius: 999, color: colors.ink, fontSize: 14, fontWeight: "800", minWidth: 30, padding: 6, textAlign: "center" },
-  entryHeading: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  entryMood: { color: colors.ember, fontSize: 15, fontWeight: "800" },
-  entryDate: { color: colors.body, fontSize: 13 },
+  entryCard: { alignItems: "flex-start", flexDirection: "row", gap: 12 },
+  entryIcon: { alignItems: "center", backgroundColor: colors.emberTint, borderRadius: 22, height: 44, justifyContent: "center", width: 44 },
+  entryContent: { flex: 1, gap: 14 },
   entryBody: { color: colors.ink, fontSize: 16, lineHeight: 23 },
+  entryFooter: { alignItems: "flex-end", gap: 10 },
+  entryActions: { alignItems: "center", flexDirection: "row", gap: 14 },
+  entryAction: { alignItems: "center", flexDirection: "row", gap: 5, minHeight: 32 },
+  entryActionText: { color: colors.ink, fontSize: 13, fontWeight: "800" },
+  deleteActionText: { color: colors.ember, fontSize: 13, fontWeight: "800" },
+  actionPressed: { opacity: 0.55 },
+  entryMeta: { color: colors.body, fontSize: 12, textAlign: "right" },
 });
