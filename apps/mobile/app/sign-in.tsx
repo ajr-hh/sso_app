@@ -16,7 +16,7 @@ import { explainError } from "../src/lib/errors";
 import {
   isCompleteCode,
   normalizeCode,
-  OTP_LENGTH,
+  OTP_MAX_LENGTH,
   sendEmailCode,
   verifyEmailCode,
 } from "../src/lib/otp";
@@ -87,8 +87,8 @@ export default function SignInScreen() {
         <Text style={styles.title}>Support, right when you need it.</Text>
         <Text style={styles.body}>
           {codeSent
-            ? `We sent a ${OTP_LENGTH}-digit code to ${email.trim()}. Enter it below.`
-            : `Enter your email and we’ll send a ${OTP_LENGTH}-digit sign-in code.`}
+            ? `We sent a sign-in code to ${email.trim()}. Enter it below.`
+            : "Enter your email and we’ll send a sign-in code."}
         </Text>
 
         {error ? <ErrorBanner message={error} /> : null}
@@ -102,7 +102,7 @@ export default function SignInScreen() {
               editable={!submitting}
               inputMode="numeric"
               keyboardType="number-pad"
-              maxLength={OTP_LENGTH}
+              maxLength={OTP_MAX_LENGTH}
               onChangeText={(next) => setCode(normalizeCode(next))}
               placeholder="123456"
               placeholderTextColor={colors.body}

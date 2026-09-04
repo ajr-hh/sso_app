@@ -30,7 +30,7 @@ Legacy reference: [`docs/clickable-prototype.html`](./docs/clickable-prototype.h
 
 ### Email sign-in codes
 
-Sign-in uses a 6-digit emailed code, not a magic link, so there is no redirect
+Sign-in uses an emailed numeric code, not a magic link, so there is no redirect
 URL to configure and the code can be read on any device.
 
 Supabase sends a link by default, so update two templates under **Supabase
@@ -46,8 +46,11 @@ For example:
 <p>Enter this code to sign in: {{ .Token }}</p>
 ```
 
-Codes expire after 1 hour and can be requested once every 60 seconds; both are
-configurable under **Authentication → Sign In / Providers → Email**.
+Code length is a project setting — **Authentication → Sign In / Providers →
+Email → Email OTP length** — and is 6 to 10 digits depending on when the project
+was created. The app accepts that whole range, so no client change is needed if
+you adjust it. Codes expire after 1 hour and can be requested once every 60
+seconds; both are configurable in the same place.
 
 ## Stack
 

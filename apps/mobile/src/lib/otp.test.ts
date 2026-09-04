@@ -10,7 +10,8 @@ describe("normalizeCode", () => {
     ["123456", "123456"],
     ["123 456", "123456"],
     ["123-456", "123456"],
-    ["1234567", "123456"],
+    ["73652313", "73652313"],
+    ["12345678901", "1234567890"],
     ["12a34b56", "123456"],
     ["", ""],
   ])("normalizes %p to %p", (input, expected) => {
@@ -19,12 +20,15 @@ describe("normalizeCode", () => {
 });
 
 describe("isCompleteCode", () => {
-  test("accepts six digits", () => {
-    expect(isCompleteCode("123 456")).toBe(true);
-  });
-
-  test("rejects a short code", () => {
-    expect(isCompleteCode("12345")).toBe(false);
+  // Supabase projects issue 6-10 digit codes depending on Email OTP length.
+  test.each([
+    ["123 456", true],
+    ["73652313", true],
+    ["1234567890", true],
+    ["12345", false],
+    ["", false],
+  ])("treats %p as complete: %p", (input, expected) => {
+    expect(isCompleteCode(input)).toBe(expected);
   });
 });
 
@@ -75,6 +79,22 @@ describe("verifyEmailCode", () => {
     });
   });
 
+  test("verifies a longer code from a project configured for more digits", async () => {
+    const verifyOtp = jest.fn().mockResolvedValue({ error: null });
+
+    await verifyEmailCode(
+      { signInWithOtp: jest.fn(), verifyOtp },
+      "member@example.com",
+      "73652313",
+    );
+
+    expect(verifyOtp).toHaveBeenCalledWith({
+      email: "member@example.com",
+      token: "73652313",
+      type: "email",
+    });
+  });
+
   test("rejects an incomplete code without calling Supabase", async () => {
     const verifyOtp = jest.fn();
 
@@ -84,7 +104,7 @@ describe("verifyEmailCode", () => {
         "member@example.com",
         "12345",
       ),
-    ).rejects.toThrow("Enter the 6-digit code from your email.");
+    ).rejects.toThrow("Enter the code from your email.");
 
     expect(verifyOtp).not.toHaveBeenCalled();
   });

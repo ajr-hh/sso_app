@@ -2,14 +2,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 type AuthClient = Pick<SupabaseClient["auth"], "signInWithOtp" | "verifyOtp">;
 
-export const OTP_LENGTH = 6;
+// Supabase issues 6-10 digit codes; the exact length is a project setting
+// (Authentication -> Sign In / Providers -> Email -> Email OTP length), so the
+// client accepts the whole range rather than assuming one length.
+export const OTP_MIN_LENGTH = 6;
+export const OTP_MAX_LENGTH = 10;
 
 export function normalizeCode(input: string): string {
-  return input.replace(/\D/g, "").slice(0, OTP_LENGTH);
+  return input.replace(/\D/g, "").slice(0, OTP_MAX_LENGTH);
 }
 
 export function isCompleteCode(input: string): boolean {
-  return normalizeCode(input).length === OTP_LENGTH;
+  return normalizeCode(input).length >= OTP_MIN_LENGTH;
 }
 
 export async function sendEmailCode(
@@ -33,8 +37,8 @@ export async function verifyEmailCode(
 ): Promise<void> {
   const token = normalizeCode(code);
 
-  if (token.length !== OTP_LENGTH) {
-    throw new Error(`Enter the ${OTP_LENGTH}-digit code from your email.`);
+  if (token.length < OTP_MIN_LENGTH) {
+    throw new Error("Enter the code from your email.");
   }
 
   const { error } = await auth.verifyOtp({
