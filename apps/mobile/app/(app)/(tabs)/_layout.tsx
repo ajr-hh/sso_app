@@ -1,18 +1,25 @@
 import { Tabs, useRouter } from "expo-router";
 import { Fragment } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SOS_PATH, TAB_SCREENS } from "../../../src/navigation/tabs";
 import { colors } from "../../../src/theme/colors";
 
 export default function TabsLayout() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
       screenOptions={{ headerShown: false }}
       tabBar={({ state }) => (
-        <View style={styles.tabBar}>
+        <View
+          style={[
+            styles.tabBar,
+            { paddingBottom: Math.max(insets.bottom, 12) },
+          ]}
+        >
           {TAB_SCREENS.map((screen, index) => {
             const active = state.routes[state.index]?.name === screen.name;
 
@@ -67,7 +74,6 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     elevation: 12,
     flexDirection: "row",
-    paddingBottom: 22,
     paddingHorizontal: 8,
     paddingTop: 12,
     shadowColor: colors.ink,

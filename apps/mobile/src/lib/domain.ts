@@ -75,6 +75,16 @@ export function journalStreak(
   return streak;
 }
 
+// Name and why-it-matters are what the rest of the app greets and coaches with,
+// so onboarding collects them before the tabs are usable. Age and contact info
+// stay optional.
+export function isProfileComplete(profile: {
+  display_name: string | null;
+  why_matters: string | null;
+}): boolean {
+  return Boolean(profile.display_name?.trim() && profile.why_matters?.trim());
+}
+
 export function initialsFromName(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
 

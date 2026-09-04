@@ -1,4 +1,5 @@
 import {
+  isProfileComplete,
   RAIL_OPTIONS,
   addDays,
   initialsFromName,
@@ -116,5 +117,18 @@ describe("rails", () => {
   test("identifies whether a rail matches a preferred motivator", () => {
     expect(isPreferredRail("why", ["Remember why"])).toBe(true);
     expect(isPreferredRail("food", ["Remember why"])).toBe(false);
+  });
+});
+
+describe("isProfileComplete", () => {
+  test.each([
+    [{ display_name: "Ada Lovelace", why_matters: "My kids." }, true],
+    [{ display_name: null, why_matters: "My kids." }, false],
+    [{ display_name: "Ada Lovelace", why_matters: null }, false],
+    [{ display_name: "  ", why_matters: "My kids." }, false],
+    [{ display_name: "Ada Lovelace", why_matters: "   " }, false],
+    [{ display_name: null, why_matters: null }, false],
+  ])("treats %p as complete: %p", (profile, expected) => {
+    expect(isProfileComplete(profile)).toBe(expected);
   });
 });
