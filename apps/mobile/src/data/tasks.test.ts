@@ -116,6 +116,9 @@ describe("task active rows", () => {
 
     await expect(toggleTask("task-1", true)).resolves.toBeUndefined();
     expect(update).toHaveBeenCalledWith({ done: true });
+    expect(idFilter).toHaveBeenCalledWith("id", "task-1");
+    expect(ownerFilter).toHaveBeenCalledWith("user_id", "user-1");
+    expect(dayFilter).toHaveBeenCalledWith("day", taskDayKey());
     expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
   });
 
@@ -139,6 +142,9 @@ describe("task active rows", () => {
     expect(update).toHaveBeenCalledWith({
       deleted_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/),
     });
+    expect(idFilter).toHaveBeenCalledWith("id", "task-1");
+    expect(ownerFilter).toHaveBeenCalledWith("user_id", "user-1");
+    expect(dayFilter).toHaveBeenCalledWith("day", taskDayKey());
     expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
   });
 

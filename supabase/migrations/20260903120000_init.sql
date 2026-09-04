@@ -105,9 +105,9 @@ add column if not exists deleted_at timestamptz;
 alter table public.community_posts
 add column if not exists deleted_at timestamptz;
 
-create index if not exists profiles_active_id_idx
-on public.profiles (id)
-where deleted_at is null;
+-- Superseded: the profiles primary key already serves single-row lookups.
+drop index if exists public.profiles_active_id_idx;
+
 create index if not exists goals_active_user_sort_idx
 on public.goals (user_id, sort_order)
 where deleted_at is null;
@@ -231,6 +231,8 @@ drop policy if exists "Members delete their own community posts" on public.commu
 drop policy if exists "Authenticated members select active community posts" on public.community_posts;
 drop policy if exists "Members insert their active community posts" on public.community_posts;
 drop policy if exists "Members update their active community posts" on public.community_posts;
+-- The community feed is shared: every authenticated member may read every
+-- active post, so this policy deliberately checks only deleted_at.
 create policy "Authenticated members select active community posts"
 on public.community_posts for select to authenticated
 using (deleted_at is null);
@@ -251,6 +253,11 @@ revoke delete on table
   public.reinforcement_photos,
   public.community_posts
 from authenticated;
+
+-- The community update policy exists only to soft-delete. Column-level grants
+-- stop an owner from rewriting the body of a post others have already read.
+revoke update on table public.community_posts from authenticated;
+grant update (deleted_at) on table public.community_posts to authenticated;
 
 create or replace function public.handle_new_user()
 returns trigger
