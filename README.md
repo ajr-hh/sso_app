@@ -19,7 +19,9 @@ Legacy reference: [`docs/clickable-prototype.html`](./docs/clickable-prototype.h
 
 1. Copy `apps/mobile/.env.example` to `apps/mobile/.env`.
 2. Fill in `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` from your Supabase project.
-3. In the Supabase SQL editor, apply [`supabase/migrations/20260903120000_init.sql`](./supabase/migrations/20260903120000_init.sql).
+3. In the Supabase SQL editor, apply the whole of
+   [`supabase/migrations/20260903120000_init.sql`](./supabase/migrations/20260903120000_init.sql).
+   It is idempotent, so re-run the entire file if a partial run ever fails.
 4. Start the dev server:
 
    ```bash
