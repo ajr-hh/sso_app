@@ -86,6 +86,10 @@ export default function HomeScreen() {
     toDayKey(new Date()),
   );
   const name = data.profile.display_name?.trim() || "there";
+  const streakMessage =
+    streak > 0
+      ? "You checked in today. Keep it going."
+      : "A quick check-in starts today’s streak.";
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
@@ -98,15 +102,18 @@ export default function HomeScreen() {
       {error ? <ErrorBanner message={error} /> : null}
       {loading ? <ActivityIndicator color={colors.ember} /> : null}
 
-      <View style={styles.streakCard}>
-        <Text style={styles.streakNumber}>{streak}</Text>
+      <View
+        accessible
+        accessibilityLabel={`${streak} day journal streak. ${streakMessage}`}
+        style={styles.streakCard}
+      >
+        <View style={styles.streakValue}>
+          <MaterialSymbol color={colors.ember} name="fire_check" size={34} />
+          <Text style={styles.streakNumber}>{streak}</Text>
+        </View>
         <View style={styles.streakCopy}>
           <Text style={styles.streakTitle}>day journal streak</Text>
-          <Text style={styles.streakBody}>
-            {streak > 0
-              ? "You checked in today. Keep it going."
-              : "A quick check-in starts today’s streak."}
-          </Text>
+          <Text style={styles.streakBody}>{streakMessage}</Text>
         </View>
       </View>
 
@@ -256,8 +263,11 @@ const styles = StyleSheet.create({
   title: { color: colors.ink, fontSize: 36, fontWeight: "800" },
   body: { color: colors.body, fontSize: 16, lineHeight: 22 },
   streakCard: { alignItems: "center", backgroundColor: colors.ink, borderRadius: 18, flexDirection: "row", gap: 16, padding: 20 },
+  // The icon and number keep their size on narrow screens; the copy beside them
+  // is what wraps.
+  streakValue: { alignItems: "center", flexDirection: "row", flexShrink: 0, gap: 8 },
   streakNumber: { color: colors.ember, fontSize: 48, fontWeight: "900", minWidth: 46, textAlign: "center" },
-  streakCopy: { flex: 1, gap: 4 },
+  streakCopy: { flex: 1, flexShrink: 1, gap: 4, minWidth: 0 },
   streakTitle: { color: "#FFFFFF", fontSize: 20, fontWeight: "800" },
   streakBody: { color: "#D8DCDC", fontSize: 15, lineHeight: 20 },
   section: { backgroundColor: "#FFFFFF", borderRadius: 16, gap: 14, padding: 18 },

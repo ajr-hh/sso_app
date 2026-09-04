@@ -9,16 +9,20 @@ export type MaterialSymbolName =
   | "chart_data"
   | "chat"
   | "delete"
+  | "e911_emergency"
   | "edit"
   | "edit_note"
   | "emergency"
+  | "event_upcoming"
   | "favorite"
+  | "fire_check"
   | "flag"
   | "groups"
   | "home"
   | "nutrition"
   | "person"
   | "redeem"
+  | "reminder"
   | "sentiment_dissatisfied"
   | "sentiment_neutral"
   | "sentiment_satisfied";
@@ -31,16 +35,20 @@ const glyphs: Readonly<Record<MaterialSymbolName, string>> = {
   chart_data: "\u{E473}",
   chat: "\u{E0C9}",
   delete: "\u{E872}",
+  e911_emergency: "\u{F119}",
   edit: "\u{E3C9}",
   edit_note: "\u{E745}",
   emergency: "\u{E1EB}",
+  event_upcoming: "\u{F238}",
   favorite: "\u{E87E}",
+  fire_check: "\u{FFFA8}",
   flag: "\u{EA1A}",
   groups: "\u{F233}",
   home: "\u{E88A}",
   nutrition: "\u{E110}",
   person: "\u{E7FD}",
   redeem: "\u{E8F6}",
+  reminder: "\u{E6C6}",
   sentiment_dissatisfied: "\u{E811}",
   sentiment_neutral: "\u{E812}",
   sentiment_satisfied: "\u{E813}",
