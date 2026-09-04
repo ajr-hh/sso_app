@@ -33,7 +33,8 @@ describe("journal data", () => {
       },
     ];
     const order = jest.fn().mockResolvedValue({ data: entries, error: null });
-    const userFilter = jest.fn().mockReturnValue({ order });
+    const activeFilter = jest.fn().mockReturnValue({ order });
+    const userFilter = jest.fn().mockReturnValue({ is: activeFilter });
     const select = jest.fn().mockReturnValue({ eq: userFilter });
     const from = jest.fn().mockReturnValue({ select });
     mockedGetSupabase.mockReturnValue({
@@ -50,6 +51,7 @@ describe("journal data", () => {
     expect(from).toHaveBeenCalledWith("journal_entries");
     expect(select).toHaveBeenCalledWith("id, mood, body, created_at");
     expect(userFilter).toHaveBeenCalledWith("user_id", "user-1");
+    expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
     expect(order).toHaveBeenCalledWith("created_at", { ascending: false });
   });
 
@@ -90,7 +92,9 @@ describe("journal data", () => {
       },
       from: jest.fn().mockReturnValue({
         select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({ order }),
+          eq: jest.fn().mockReturnValue({
+            is: jest.fn().mockReturnValue({ order }),
+          }),
         }),
       }),
     } as never);
@@ -105,7 +109,8 @@ describe("updateJournalEntry", () => {
   });
 
   test("updates mood and body for the signed-in member's entry", async () => {
-    const userFilter = jest.fn().mockResolvedValue({ error: null });
+    const activeFilter = jest.fn().mockResolvedValue({ error: null });
+    const userFilter = jest.fn().mockReturnValue({ is: activeFilter });
     const idFilter = jest.fn().mockReturnValue({ eq: userFilter });
     const update = jest.fn().mockReturnValue({ eq: idFilter });
     mockedGetSupabase.mockReturnValue({
@@ -128,12 +133,14 @@ describe("updateJournalEntry", () => {
     });
     expect(idFilter).toHaveBeenCalledWith("id", "entry-1");
     expect(userFilter).toHaveBeenCalledWith("user_id", "user-1");
+    expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
   });
 
   test("propagates Supabase errors from update", async () => {
-    const userFilter = jest.fn().mockResolvedValue({
+    const activeFilter = jest.fn().mockResolvedValue({
       error: { message: "Update failed" },
     });
+    const userFilter = jest.fn().mockReturnValue({ is: activeFilter });
     mockedGetSupabase.mockReturnValue({
       auth: {
         getUser: jest.fn().mockResolvedValue({
@@ -159,10 +166,11 @@ describe("deleteJournalEntry", () => {
     jest.clearAllMocks();
   });
 
-  test("deletes the signed-in member's entry", async () => {
-    const userFilter = jest.fn().mockResolvedValue({ error: null });
+  test("soft-deletes the signed-in member's active entry", async () => {
+    const activeFilter = jest.fn().mockResolvedValue({ error: null });
+    const userFilter = jest.fn().mockReturnValue({ is: activeFilter });
     const idFilter = jest.fn().mockReturnValue({ eq: userFilter });
-    const deleteEntry = jest.fn().mockReturnValue({ eq: idFilter });
+    const update = jest.fn().mockReturnValue({ eq: idFilter });
     mockedGetSupabase.mockReturnValue({
       auth: {
         getUser: jest.fn().mockResolvedValue({
@@ -170,19 +178,24 @@ describe("deleteJournalEntry", () => {
           error: null,
         }),
       },
-      from: jest.fn().mockReturnValue({ delete: deleteEntry }),
+      from: jest.fn().mockReturnValue({ update }),
     } as never);
 
     await expect(deleteJournalEntry("entry-1")).resolves.toBeUndefined();
 
+    expect(update).toHaveBeenCalledWith({
+      deleted_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/),
+    });
     expect(idFilter).toHaveBeenCalledWith("id", "entry-1");
     expect(userFilter).toHaveBeenCalledWith("user_id", "user-1");
+    expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
   });
 
-  test("propagates Supabase errors from delete", async () => {
-    const userFilter = jest.fn().mockResolvedValue({
+  test("propagates Supabase errors from soft delete", async () => {
+    const activeFilter = jest.fn().mockResolvedValue({
       error: { message: "Delete failed" },
     });
+    const userFilter = jest.fn().mockReturnValue({ is: activeFilter });
     mockedGetSupabase.mockReturnValue({
       auth: {
         getUser: jest.fn().mockResolvedValue({
@@ -191,7 +204,7 @@ describe("deleteJournalEntry", () => {
         }),
       },
       from: jest.fn().mockReturnValue({
-        delete: jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({ eq: userFilter }),
         }),
       }),

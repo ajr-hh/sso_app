@@ -30,7 +30,8 @@ describe("community data", () => {
     const postOrder = jest
       .fn()
       .mockResolvedValue({ data: posts, error: null });
-    const postSelect = jest.fn().mockReturnValue({ order: postOrder });
+    const activePosts = jest.fn().mockReturnValue({ order: postOrder });
+    const postSelect = jest.fn().mockReturnValue({ is: activePosts });
     const profileFilter = jest.fn().mockResolvedValue({
       data: [
         { id: "user-1", display_name: "Alex Rivera" },
@@ -60,6 +61,7 @@ describe("community data", () => {
     expect(postSelect).toHaveBeenCalledWith(
       "id, user_id, body, created_at",
     );
+    expect(activePosts).toHaveBeenCalledWith("deleted_at", null);
     expect(postOrder).toHaveBeenCalledWith("created_at", {
       ascending: false,
     });
@@ -89,10 +91,11 @@ describe("community data", () => {
     });
   });
 
-  test("deletes only a post owned by the signed-in member", async () => {
-    const ownerFilter = jest.fn().mockResolvedValue({ error: null });
+  test("soft-deletes only an active post owned by the signed-in member", async () => {
+    const activeFilter = jest.fn().mockResolvedValue({ error: null });
+    const ownerFilter = jest.fn().mockReturnValue({ is: activeFilter });
     const postFilter = jest.fn().mockReturnValue({ eq: ownerFilter });
-    const deleteQuery = jest.fn().mockReturnValue({ eq: postFilter });
+    const update = jest.fn().mockReturnValue({ eq: postFilter });
     mockedGetSupabase.mockReturnValue({
       auth: {
         getUser: jest.fn().mockResolvedValue({
@@ -100,12 +103,39 @@ describe("community data", () => {
           error: null,
         }),
       },
-      from: jest.fn().mockReturnValue({ delete: deleteQuery }),
+      from: jest.fn().mockReturnValue({ update }),
     } as never);
 
     await expect(deletePost("post-1")).resolves.toBe(undefined);
+    expect(update).toHaveBeenCalledWith({
+      deleted_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/),
+    });
     expect(postFilter).toHaveBeenCalledWith("id", "post-1");
     expect(ownerFilter).toHaveBeenCalledWith("user_id", "user-1");
+    expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
+  });
+
+  test("propagates post soft-delete failures", async () => {
+    const activeFilter = jest.fn().mockResolvedValue({
+      error: { message: "Delete failed" },
+    });
+    mockedGetSupabase.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({ is: activeFilter }),
+          }),
+        }),
+      }),
+    } as never);
+
+    await expect(deletePost("post-1")).rejects.toThrow("Delete failed");
   });
 
   test("surfaces profile lookup failures", async () => {
@@ -120,16 +150,18 @@ describe("community data", () => {
         .fn()
         .mockReturnValueOnce({
           select: jest.fn().mockReturnValue({
-            order: jest.fn().mockResolvedValue({
-              data: [
-                {
-                  id: "post-1",
-                  user_id: "user-1",
-                  body: "Hello",
-                  created_at: "2026-09-04T15:00:00.000Z",
-                },
-              ],
-              error: null,
+            is: jest.fn().mockReturnValue({
+              order: jest.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "post-1",
+                    user_id: "user-1",
+                    body: "Hello",
+                    created_at: "2026-09-04T15:00:00.000Z",
+                  },
+                ],
+                error: null,
+              }),
             }),
           }),
         })

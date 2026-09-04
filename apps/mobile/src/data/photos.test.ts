@@ -173,7 +173,8 @@ describe("reinforcement photo data", () => {
       },
     ];
     const order = jest.fn().mockResolvedValue({ data: rows, error: null });
-    const eq = jest.fn().mockReturnValue({ order });
+    const activeFilter = jest.fn().mockReturnValue({ order });
+    const eq = jest.fn().mockReturnValue({ is: activeFilter });
     const select = jest.fn().mockReturnValue({ eq });
     const createSignedUrl = jest.fn().mockResolvedValue({
       data: { signedUrl: "https://example.test/photo-1" },
@@ -190,6 +191,7 @@ describe("reinforcement photo data", () => {
       { ...rows[0], signed_url: "https://example.test/photo-1" },
     ]);
     expect(eq).toHaveBeenCalledWith("mode", "remember_why");
+    expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
     expect(order).toHaveBeenCalledWith("created_at", { ascending: false });
     expect(createSignedUrl).toHaveBeenCalledWith("user-1/photo-1.jpg", 3600);
   });

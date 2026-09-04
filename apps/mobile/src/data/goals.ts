@@ -26,6 +26,7 @@ export async function fetchGoals(): Promise<Goal[]> {
     .from("goals")
     .select("id, label, sort_order")
     .eq("user_id", userId)
+    .is("deleted_at", null)
     .order("sort_order", { ascending: true });
 
   if (error) {
@@ -42,8 +43,9 @@ export async function replaceGoals(labels: string[]): Promise<void> {
   if (labels.length === 0) {
     const { error } = await supabase
       .from("goals")
-      .delete()
-      .eq("user_id", userId);
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .is("deleted_at", null);
 
     if (error) {
       throw new Error(error.message);
@@ -70,8 +72,9 @@ export async function replaceGoals(labels: string[]): Promise<void> {
   const insertedIds = insertedGoals.map(({ id }) => id);
   const { error: deleteError } = await supabase
     .from("goals")
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq("user_id", userId)
+    .is("deleted_at", null)
     .not("id", "in", `(${insertedIds.join(",")})`);
 
   if (deleteError) {

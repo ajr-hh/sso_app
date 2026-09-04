@@ -25,6 +25,7 @@ export async function fetchProfile(): Promise<Profile> {
       "id, display_name, age, phone, why_matters, motivators, coach_style",
     )
     .eq("id", user.id)
+    .is("deleted_at", null)
     .single();
 
   if (error) {
@@ -50,7 +51,8 @@ export async function saveProfile(
   const { error } = await getSupabase()
     .from("profiles")
     .update(patch)
-    .eq("id", user.id);
+    .eq("id", user.id)
+    .is("deleted_at", null);
 
   if (error) {
     throw new Error(error.message);

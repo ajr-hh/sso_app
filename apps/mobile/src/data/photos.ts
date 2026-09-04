@@ -140,6 +140,7 @@ export async function fetchPhotos(
     .from("reinforcement_photos")
     .select("id, user_id, storage_key, caption, tag, mode, created_at")
     .eq("mode", mode)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (error) {

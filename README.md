@@ -22,7 +22,7 @@ Legacy reference: [`docs/clickable-prototype.html`](./docs/clickable-prototype.h
 3. In the Supabase SQL editor, apply the whole of
    [`supabase/migrations/20260903120000_init.sql`](./supabase/migrations/20260903120000_init.sql).
    It is idempotent, so re-run the entire file after pulling schema updates
-   (such as new profile fields) or if a partial run ever fails.
+   (including to enable soft delete) or if a partial run ever fails.
 4. Start the dev server:
 
    ```bash
@@ -30,6 +30,12 @@ Legacy reference: [`docs/clickable-prototype.html`](./docs/clickable-prototype.h
    ```
 
 5. Open **Expo Go** on your phone and scan the QR code.
+
+### Data deletion
+
+Ordinary deletion in the app is a soft delete: the database row is retained
+and hidden from normal app reads. Deleting a Supabase Auth account is permanent
+account erasure and cascades to that member's app data.
 
 ### Email sign-in codes
 

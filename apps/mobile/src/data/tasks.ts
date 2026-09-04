@@ -32,6 +32,7 @@ export async function fetchTasks(): Promise<DailyTask[]> {
     .select("id, label, done")
     .eq("user_id", userId)
     .eq("day", taskDayKey())
+    .is("deleted_at", null)
     .order("id", { ascending: true });
 
   if (error) {
@@ -61,7 +62,8 @@ export async function toggleTask(id: string, done: boolean): Promise<void> {
     .update({ done })
     .eq("id", id)
     .eq("user_id", userId)
-    .eq("day", taskDayKey());
+    .eq("day", taskDayKey())
+    .is("deleted_at", null);
 
   if (error) {
     throw new Error(error.message);
@@ -75,7 +77,8 @@ export async function updateTask(id: string, label: string): Promise<void> {
     .update({ label })
     .eq("id", id)
     .eq("user_id", userId)
-    .eq("day", taskDayKey());
+    .eq("day", taskDayKey())
+    .is("deleted_at", null);
 
   if (error) {
     throw new Error(error.message);
@@ -86,10 +89,11 @@ export async function deleteTask(id: string): Promise<void> {
   const userId = await requireUserId();
   const { error } = await getSupabase()
     .from("daily_tasks")
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", userId)
-    .eq("day", taskDayKey());
+    .eq("day", taskDayKey())
+    .is("deleted_at", null);
 
   if (error) {
     throw new Error(error.message);
