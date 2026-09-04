@@ -145,10 +145,12 @@ using ((select auth.uid()) = id and deleted_at is null);
 create policy "Members insert their active profile"
 on public.profiles for insert to authenticated
 with check ((select auth.uid()) = id and deleted_at is null);
+-- Profiles have no app delete path. The update policy keeps the row active,
+-- so a raw PATCH cannot tombstone it. Auth account deletion remains erasure.
 create policy "Members update their active profile"
 on public.profiles for update to authenticated
 using ((select auth.uid()) = id and deleted_at is null)
-with check ((select auth.uid()) = id);
+with check ((select auth.uid()) = id and deleted_at is null);
 
 drop policy if exists "Members manage their own goals" on public.goals;
 drop policy if exists "Members select their active goals" on public.goals;
@@ -258,6 +260,17 @@ from authenticated;
 -- stop an owner from rewriting the body of a post others have already read.
 revoke update on table public.community_posts from authenticated;
 grant update (deleted_at) on table public.community_posts to authenticated;
+
+-- Profiles cannot be app-deleted. Grant only the fields saveProfile writes.
+revoke update on table public.profiles from authenticated;
+grant update (
+  display_name,
+  age,
+  phone,
+  why_matters,
+  motivators,
+  coach_style
+) on table public.profiles to authenticated;
 
 create or replace function public.handle_new_user()
 returns trigger
