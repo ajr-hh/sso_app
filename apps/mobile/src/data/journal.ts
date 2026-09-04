@@ -1,5 +1,7 @@
 import { getSupabase } from "../lib/supabase";
 
+export type JournalSentiment = "Good day" | "Tough day" | "Mixed";
+
 export type JournalEntry = {
   id: string;
   mood: string | null;
@@ -37,7 +39,7 @@ export async function fetchJournal(): Promise<JournalEntry[]> {
 }
 
 export async function addJournalEntry(
-  mood: string,
+  mood: JournalSentiment | string,
   body: string,
 ): Promise<void> {
   const userId = await requireUserId();
@@ -46,6 +48,36 @@ export async function addJournalEntry(
     mood,
     body,
   });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function updateJournalEntry(
+  id: string,
+  mood: JournalSentiment,
+  body: string,
+): Promise<void> {
+  const userId = await requireUserId();
+  const { error } = await getSupabase()
+    .from("journal_entries")
+    .update({ mood, body })
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function deleteJournalEntry(id: string): Promise<void> {
+  const userId = await requireUserId();
+  const { error } = await getSupabase()
+    .from("journal_entries")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId);
 
   if (error) {
     throw new Error(error.message);

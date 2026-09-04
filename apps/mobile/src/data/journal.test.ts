@@ -1,5 +1,10 @@
 import { getSupabase } from "../lib/supabase";
-import { addJournalEntry, fetchJournal } from "./journal";
+import {
+  addJournalEntry,
+  deleteJournalEntry,
+  fetchJournal,
+  updateJournalEntry,
+} from "./journal";
 
 jest.mock("../lib/supabase", () => ({
   getSupabase: jest.fn(),
@@ -61,12 +66,12 @@ describe("journal data", () => {
       from,
     } as never);
 
-    await expect(addJournalEntry("Proud", "I followed through.")).resolves.toBe(
-      undefined,
-    );
+    await expect(
+      addJournalEntry("Good day", "I followed through."),
+    ).resolves.toBe(undefined);
     expect(insert).toHaveBeenCalledWith({
       user_id: "user-1",
-      mood: "Proud",
+      mood: "Good day",
       body: "I followed through.",
     });
   });
@@ -91,5 +96,109 @@ describe("journal data", () => {
     } as never);
 
     await expect(fetchJournal()).rejects.toThrow("Journal unavailable");
+  });
+});
+
+describe("updateJournalEntry", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("updates mood and body for the signed-in member's entry", async () => {
+    const userFilter = jest.fn().mockResolvedValue({ error: null });
+    const idFilter = jest.fn().mockReturnValue({ eq: userFilter });
+    const update = jest.fn().mockReturnValue({ eq: idFilter });
+    mockedGetSupabase.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: jest.fn().mockReturnValue({ update }),
+    } as never);
+
+    await expect(
+      updateJournalEntry("entry-1", "Mixed", "Updated reflection."),
+    ).resolves.toBeUndefined();
+
+    expect(update).toHaveBeenCalledWith({
+      mood: "Mixed",
+      body: "Updated reflection.",
+    });
+    expect(idFilter).toHaveBeenCalledWith("id", "entry-1");
+    expect(userFilter).toHaveBeenCalledWith("user_id", "user-1");
+  });
+
+  test("propagates Supabase errors from update", async () => {
+    const userFilter = jest.fn().mockResolvedValue({
+      error: { message: "Update failed" },
+    });
+    mockedGetSupabase.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({ eq: userFilter }),
+        }),
+      }),
+    } as never);
+
+    await expect(
+      updateJournalEntry("entry-1", "Tough day", "Hard day."),
+    ).rejects.toThrow("Update failed");
+  });
+});
+
+describe("deleteJournalEntry", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("deletes the signed-in member's entry", async () => {
+    const userFilter = jest.fn().mockResolvedValue({ error: null });
+    const idFilter = jest.fn().mockReturnValue({ eq: userFilter });
+    const deleteEntry = jest.fn().mockReturnValue({ eq: idFilter });
+    mockedGetSupabase.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: jest.fn().mockReturnValue({ delete: deleteEntry }),
+    } as never);
+
+    await expect(deleteJournalEntry("entry-1")).resolves.toBeUndefined();
+
+    expect(idFilter).toHaveBeenCalledWith("id", "entry-1");
+    expect(userFilter).toHaveBeenCalledWith("user_id", "user-1");
+  });
+
+  test("propagates Supabase errors from delete", async () => {
+    const userFilter = jest.fn().mockResolvedValue({
+      error: { message: "Delete failed" },
+    });
+    mockedGetSupabase.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: jest.fn().mockReturnValue({
+        delete: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({ eq: userFilter }),
+        }),
+      }),
+    } as never);
+
+    await expect(deleteJournalEntry("entry-1")).rejects.toThrow(
+      "Delete failed",
+    );
   });
 });
