@@ -9,8 +9,10 @@ import {
   SosLoading,
   SosScreen,
   sosTextStyles,
+  useSosPath,
 } from "../../../components/SosUi";
 import { fetchJournal } from "../../../src/data/journal";
+import { logSosEvent } from "../../../src/data/sos";
 import { fetchTasks } from "../../../src/data/tasks";
 import { explainError } from "../../../src/lib/errors";
 import { journalStreak, toDayKey } from "../../../src/lib/domain";
@@ -21,6 +23,7 @@ type RewardSummary = {
 };
 
 export default function RewardsScreen() {
+  const path = useSosPath();
   const [summary, setSummary] = useState<RewardSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,8 +48,17 @@ export default function RewardsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      let active = true;
       void load();
-    }, [load]),
+      void logSosEvent(path, "rewards").catch((caughtError) => {
+        if (active) {
+          setError(explainError(caughtError));
+        }
+      });
+      return () => {
+        active = false;
+      };
+    }, [load, path]),
   );
 
   if (!summary && !error) {

@@ -9,13 +9,16 @@ import {
   SosLoading,
   SosScreen,
   sosTextStyles,
+  useSosPath,
 } from "../../../components/SosUi";
 import { COACH_LIBRARY } from "../../../src/content/coach";
 import { fetchProfile } from "../../../src/data/profile";
+import { logSosEvent } from "../../../src/data/sos";
 import { explainError } from "../../../src/lib/errors";
 import type { Profile } from "../../../src/types";
 
 export default function MessagesScreen() {
+  const path = useSosPath();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,8 +33,17 @@ export default function MessagesScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      let active = true;
       void load();
-    }, [load]),
+      void logSosEvent(path, "messages").catch((caughtError) => {
+        if (active) {
+          setError(explainError(caughtError));
+        }
+      });
+      return () => {
+        active = false;
+      };
+    }, [load, path]),
   );
 
   if (!profile && !error) {
