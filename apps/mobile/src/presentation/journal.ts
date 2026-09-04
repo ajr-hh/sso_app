@@ -42,6 +42,16 @@ export type JournalEntryAction = "Edit" | "Delete";
 
 export type JournalStatusKind = "created" | "updated" | "deleted";
 
+export function getJournalSentimentAccessibilityLabel(
+  sentiment: JournalSentiment,
+): string {
+  return `Today's sentiment, ${sentiment}`;
+}
+
+export function shouldAnnounceJournalMessage(platform: string): boolean {
+  return platform === "ios";
+}
+
 export function formatJournalTimestamp(
   createdAt: string,
   format: JournalTimestampFormat = {},

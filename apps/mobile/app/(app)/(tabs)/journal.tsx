@@ -30,9 +30,11 @@ import {
   getJournalDeleteConfirmation,
   getJournalEditAnnouncement,
   getJournalEntryActionLabel,
+  getJournalSentimentAccessibilityLabel,
   getJournalSentimentIcon,
   getJournalStatusMessage,
   normalizeJournalSentiment,
+  shouldAnnounceJournalMessage,
 } from "../../../src/presentation/journal";
 import { colors } from "../../../src/theme/colors";
 
@@ -55,7 +57,9 @@ export default function JournalScreen() {
   const [status, setStatus] = useState<string | null>(null);
 
   const announce = useCallback((message: string) => {
-    AccessibilityInfo.announceForAccessibility(message);
+    if (shouldAnnounceJournalMessage(Platform.OS)) {
+      AccessibilityInfo.announceForAccessibility(message);
+    }
   }, []);
 
   const reportError = useCallback(
@@ -79,6 +83,7 @@ export default function JournalScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setStatus(null);
     try {
       setEntries(await fetchJournal());
     } catch (caughtError) {
@@ -219,6 +224,9 @@ export default function JournalScreen() {
           >
             {MOODS.map((option) => (
               <Pressable
+                accessibilityLabel={getJournalSentimentAccessibilityLabel(
+                  option,
+                )}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: mood === option }}
                 key={option}

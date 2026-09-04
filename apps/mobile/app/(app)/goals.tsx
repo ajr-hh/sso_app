@@ -16,6 +16,7 @@ import { BackControl } from "../../components/BackControl";
 import { ErrorBanner } from "../../components/ErrorBanner";
 import { fetchGoals, replaceGoals, type Goal } from "../../src/data/goals";
 import { explainError } from "../../src/lib/errors";
+import { shouldShowGoalsInitialLoadFailure } from "../../src/presentation/goals";
 import { colors } from "../../src/theme/colors";
 
 export default function GoalsScreen() {
@@ -25,20 +26,24 @@ export default function GoalsScreen() {
   const [newGoal, setNewGoal] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     setError(null);
     try {
       const nextGoals = await fetchGoals();
       setGoals(nextGoals);
       setGoalLabels(nextGoals.map((goal) => goal.label));
+      setHasLoaded(true);
     } catch (caughtError) {
       setGoals([]);
       setGoalLabels([]);
-      setError(explainError(caughtError));
+      setLoadError(explainError(caughtError));
     } finally {
       setLoading(false);
     }
@@ -57,10 +62,10 @@ export default function GoalsScreen() {
     );
   }
 
-  if (error && goalLabels.length === 0 && goals.length === 0) {
+  if (shouldShowGoalsInitialLoadFailure(hasLoaded, loadError)) {
     return (
       <View style={styles.centered}>
-        <ErrorBanner message={error} />
+        <ErrorBanner message={loadError!} />
         <Button label="Try again" onPress={load} />
       </View>
     );
@@ -107,6 +112,7 @@ export default function GoalsScreen() {
                   );
                   setSaved(false);
                 }}
+                placeholder="Enter a goal"
                 placeholderTextColor={colors.body}
                 style={[styles.input, styles.rowInput]}
                 value={label}

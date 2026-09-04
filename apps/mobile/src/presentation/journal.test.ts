@@ -3,9 +3,11 @@ import {
   getJournalDeleteConfirmation,
   getJournalEditAnnouncement,
   getJournalEntryActionLabel,
+  getJournalSentimentAccessibilityLabel,
   getJournalSentimentIcon,
   getJournalStatusMessage,
   normalizeJournalSentiment,
+  shouldAnnounceJournalMessage,
 } from "./journal";
 
 const FORMAT = { locales: "en-US", timeZone: "UTC" } as const;
@@ -38,6 +40,21 @@ describe("journal presentation", () => {
     [null, "sentiment_neutral"],
   ] as const)("maps %p to the %s symbol", (mood, expected) => {
     expect(getJournalSentimentIcon(mood)).toBe(expected);
+  });
+
+  test.each(["Good day", "Tough day", "Mixed"] as const)(
+    "includes group context in the %s radio label",
+    (sentiment) => {
+      expect(getJournalSentimentAccessibilityLabel(sentiment)).toBe(
+        `Today's sentiment, ${sentiment}`,
+      );
+    },
+  );
+
+  test("uses explicit announcements only on iOS", () => {
+    expect(shouldAnnounceJournalMessage("ios")).toBe(true);
+    expect(shouldAnnounceJournalMessage("android")).toBe(false);
+    expect(shouldAnnounceJournalMessage("web")).toBe(false);
   });
 });
 

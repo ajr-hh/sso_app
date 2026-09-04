@@ -40,4 +40,26 @@ describe("updateTask", () => {
     expect(userFilter).toHaveBeenCalledWith("user_id", "user-1");
     expect(dayFilter).toHaveBeenCalledWith("day", taskDayKey());
   });
+
+  test("propagates Supabase update errors", async () => {
+    const dayFilter = jest.fn().mockResolvedValue({
+      error: { message: "Task update failed" },
+    });
+    const userFilter = jest.fn().mockReturnValue({ eq: dayFilter });
+    const idFilter = jest.fn().mockReturnValue({ eq: userFilter });
+    const update = jest.fn().mockReturnValue({ eq: idFilter });
+    mockedGetSupabase.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: jest.fn().mockReturnValue({ update }),
+    } as never);
+
+    await expect(updateTask("task-1", "Drink water")).rejects.toThrow(
+      "Task update failed",
+    );
+  });
 });
