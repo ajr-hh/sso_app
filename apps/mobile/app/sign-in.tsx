@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import * as Linking from "expo-linking";
 import { useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
@@ -14,16 +13,24 @@ import {
 
 import { ErrorBanner } from "../components/ErrorBanner";
 import { explainError } from "../src/lib/errors";
+import {
+  isCompleteCode,
+  normalizeCode,
+  OTP_LENGTH,
+  sendEmailCode,
+  verifyEmailCode,
+} from "../src/lib/otp";
 import { getSupabase } from "../src/lib/supabase";
 import { colors } from "../src/theme/colors";
 
 export default function SignInScreen() {
   const { authError } = useLocalSearchParams<{ authError?: string }>();
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
   const [error, setError] = useState<string | null>(
     typeof authError === "string" ? authError : null,
   );
-  const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -32,30 +39,43 @@ export default function SignInScreen() {
     }
   }, [authError]);
 
-  const sendMagicLink = async () => {
+  const requestCode = async () => {
     setError(null);
-    setSent(false);
     setSubmitting(true);
 
     try {
-      const { error: signInError } = await getSupabase().auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: Linking.createURL("/"),
-        },
-      });
-
-      if (signInError) {
-        throw signInError;
-      }
-
-      setSent(true);
+      await sendEmailCode(getSupabase().auth, email);
+      setCode("");
+      setCodeSent(true);
     } catch (caughtError) {
       setError(explainError(caughtError));
     } finally {
       setSubmitting(false);
     }
   };
+
+  // On success the root layout's auth listener navigates into the app.
+  const submitCode = async () => {
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      await verifyEmailCode(getSupabase().auth, email, code);
+    } catch (caughtError) {
+      setError(explainError(caughtError));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const useDifferentEmail = () => {
+    setError(null);
+    setCode("");
+    setCodeSent(false);
+  };
+
+  const canRequest = Boolean(email.trim()) && !submitting;
+  const canSubmit = isCompleteCode(code) && !submitting;
 
   return (
     <KeyboardAvoidingView
@@ -66,49 +86,97 @@ export default function SignInScreen() {
         <Text style={styles.eyebrow}>HUMANAUT SOS</Text>
         <Text style={styles.title}>Support, right when you need it.</Text>
         <Text style={styles.body}>
-          Enter your email and we’ll send a secure sign-in link.
+          {codeSent
+            ? `We sent a ${OTP_LENGTH}-digit code to ${email.trim()}. Enter it below.`
+            : `Enter your email and we’ll send a ${OTP_LENGTH}-digit sign-in code.`}
         </Text>
 
         {error ? <ErrorBanner message={error} /> : null}
-        {sent ? (
-          <View style={styles.confirmation}>
-            <Text style={styles.confirmationText}>
-              Check your email. Open the link on this phone.
-            </Text>
-          </View>
-        ) : null}
 
-        <View style={styles.form}>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            autoCapitalize="none"
-            autoComplete="email"
-            editable={!submitting}
-            inputMode="email"
-            keyboardType="email-address"
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            placeholderTextColor={colors.body}
-            style={styles.input}
-            value={email}
-          />
-          <Pressable
-            accessibilityRole="button"
-            disabled={!email.trim() || submitting}
-            onPress={sendMagicLink}
-            style={({ pressed }) => [
-              styles.button,
-              (!email.trim() || submitting) && styles.buttonDisabled,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            {submitting ? (
-              <ActivityIndicator color={colors.canvas} />
-            ) : (
-              <Text style={styles.buttonText}>Email me a link</Text>
-            )}
-          </Pressable>
-        </View>
+        {codeSent ? (
+          <View style={styles.form}>
+            <Text style={styles.label}>Sign-in code</Text>
+            <TextInput
+              autoComplete="one-time-code"
+              autoFocus
+              editable={!submitting}
+              inputMode="numeric"
+              keyboardType="number-pad"
+              maxLength={OTP_LENGTH}
+              onChangeText={(next) => setCode(normalizeCode(next))}
+              placeholder="123456"
+              placeholderTextColor={colors.body}
+              style={[styles.input, styles.codeInput]}
+              textContentType="oneTimeCode"
+              value={code}
+            />
+            <Pressable
+              accessibilityRole="button"
+              disabled={!canSubmit}
+              onPress={submitCode}
+              style={({ pressed }) => [
+                styles.button,
+                !canSubmit && styles.buttonDisabled,
+                pressed && styles.buttonPressed,
+              ]}
+            >
+              {submitting ? (
+                <ActivityIndicator color={colors.canvas} />
+              ) : (
+                <Text style={styles.buttonText}>Sign in</Text>
+              )}
+            </Pressable>
+
+            <View style={styles.secondaryRow}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={submitting}
+                onPress={requestCode}
+              >
+                <Text style={styles.secondaryText}>Resend code</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={submitting}
+                onPress={useDifferentEmail}
+              >
+                <Text style={styles.secondaryText}>Use a different email</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.form}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              autoCapitalize="none"
+              autoComplete="email"
+              editable={!submitting}
+              inputMode="email"
+              keyboardType="email-address"
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              placeholderTextColor={colors.body}
+              style={styles.input}
+              value={email}
+            />
+            <Pressable
+              accessibilityRole="button"
+              disabled={!canRequest}
+              onPress={requestCode}
+              style={({ pressed }) => [
+                styles.button,
+                !canRequest && styles.buttonDisabled,
+                pressed && styles.buttonPressed,
+              ]}
+            >
+              {submitting ? (
+                <ActivityIndicator color={colors.canvas} />
+              ) : (
+                <Text style={styles.buttonText}>Email me a code</Text>
+              )}
+            </Pressable>
+          </View>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -142,19 +210,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 25,
   },
-  confirmation: {
-    borderColor: colors.ember,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  confirmationText: {
-    color: colors.ink,
-    fontSize: 15,
-    fontWeight: "600",
-    lineHeight: 21,
-  },
   form: {
     gap: 10,
   },
@@ -172,6 +227,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     minHeight: 54,
     paddingHorizontal: 16,
+  },
+  codeInput: {
+    fontSize: 28,
+    fontWeight: "700",
+    letterSpacing: 8,
+    textAlign: "center",
   },
   button: {
     alignItems: "center",
@@ -192,5 +253,15 @@ const styles = StyleSheet.create({
     color: colors.canvas,
     fontSize: 17,
     fontWeight: "800",
+  },
+  secondaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  secondaryText: {
+    color: colors.ember,
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

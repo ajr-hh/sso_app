@@ -28,17 +28,26 @@ Legacy reference: [`docs/clickable-prototype.html`](./docs/clickable-prototype.h
 
 5. Open **Expo Go** on your phone and scan the QR code.
 
-### Expo Go magic-link sign-in
+### Email sign-in codes
 
-The sign-in screen passes `Linking.createURL("/")` to Supabase. In Expo Go,
-that redirect uses an `exp://` URL containing the development machine's LAN
-address. Add the exact generated URL, or `exp://**` for local development, to
-**Supabase Dashboard → Authentication → URL Configuration → Redirect URLs**.
+Sign-in uses a 6-digit emailed code, not a magic link, so there is no redirect
+URL to configure and the code can be read on any device.
 
-Open the magic-link email on the same phone that is running the app in Expo Go.
-The LAN IP in the generated redirect can change when the computer changes
-networks, so update the allowed URL when needed (or use the development
-wildcard).
+Supabase sends a link by default, so update two templates under **Supabase
+Dashboard → Authentication → Emails** to include the `{{ .Token }}` variable:
+
+- **Magic Link** — used for members who already exist
+- **Confirm signup** — used the first time an email signs in
+
+For example:
+
+```html
+<h2>Your Humanaut SOS code</h2>
+<p>Enter this code to sign in: {{ .Token }}</p>
+```
+
+Codes expire after 1 hour and can be requested once every 60 seconds; both are
+configurable under **Authentication → Sign In / Providers → Email**.
 
 ## Stack
 

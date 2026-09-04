@@ -1,12 +1,9 @@
 import type { Session } from "@supabase/supabase-js";
-import * as Linking from "expo-linking";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { useEffect, useState } from "react";
 
-import { completeAuthFromUrl } from "../src/lib/auth-link";
 import { explainError } from "../src/lib/errors";
 import { getSession, onAuthChange } from "../src/lib/session";
-import { getSupabase } from "../src/lib/supabase";
 
 export default function RootLayout() {
   const router = useRouter();
@@ -39,22 +36,8 @@ export default function RootLayout() {
       showSignInError(error);
     }
 
-    const completeAuth = async (url: string) => {
-      try {
-        await completeAuthFromUrl(getSupabase().auth, url);
-      } catch (error) {
-        showSignInError(error);
-      }
-    };
-
     const initializeAuth = async () => {
       try {
-        const initialUrl = await Linking.getInitialURL();
-
-        if (initialUrl) {
-          await completeAuth(initialUrl);
-        }
-
         const currentSession = await getSession();
 
         if (active) {
@@ -67,14 +50,9 @@ export default function RootLayout() {
 
     void initializeAuth();
 
-    const linkSubscription = Linking.addEventListener("url", ({ url }) => {
-      void completeAuth(url);
-    });
-
     return () => {
       active = false;
       subscription?.unsubscribe();
-      linkSubscription.remove();
     };
   }, [router]);
 
