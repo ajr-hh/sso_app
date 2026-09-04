@@ -28,6 +28,18 @@ Legacy reference: [`docs/clickable-prototype.html`](./docs/clickable-prototype.h
 
 5. Open **Expo Go** on your phone and scan the QR code.
 
+### Expo Go magic-link sign-in
+
+The sign-in screen passes `Linking.createURL("/")` to Supabase. In Expo Go,
+that redirect uses an `exp://` URL containing the development machine's LAN
+address. Add the exact generated URL, or `exp://**` for local development, to
+**Supabase Dashboard → Authentication → URL Configuration → Redirect URLs**.
+
+Open the magic-link email on the same phone that is running the app in Expo Go.
+The LAN IP in the generated redirect can change when the computer changes
+networks, so update the allowed URL when needed (or use the development
+wildcard).
+
 ## Stack
 
 Expo · Expo Router · TypeScript · Supabase (Auth, Postgres, Storage)

@@ -1,3 +1,4 @@
+import { toDayKey } from "../lib/domain";
 import { getSupabase } from "../lib/supabase";
 
 export type DailyTask = {
@@ -20,8 +21,8 @@ async function requireUserId(): Promise<string> {
   return data.user.id;
 }
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
+export function taskDayKey(date = new Date()): string {
+  return toDayKey(date);
 }
 
 export async function fetchTasks(): Promise<DailyTask[]> {
@@ -30,7 +31,7 @@ export async function fetchTasks(): Promise<DailyTask[]> {
     .from("daily_tasks")
     .select("id, label, done")
     .eq("user_id", userId)
-    .eq("day", today())
+    .eq("day", taskDayKey())
     .order("id", { ascending: true });
 
   if (error) {
@@ -45,7 +46,7 @@ export async function addTask(label: string): Promise<void> {
   const { error } = await getSupabase().from("daily_tasks").insert({
     user_id: userId,
     label,
-    day: today(),
+    day: taskDayKey(),
   });
 
   if (error) {
@@ -60,7 +61,7 @@ export async function toggleTask(id: string, done: boolean): Promise<void> {
     .update({ done })
     .eq("id", id)
     .eq("user_id", userId)
-    .eq("day", today());
+    .eq("day", taskDayKey());
 
   if (error) {
     throw new Error(error.message);
@@ -74,7 +75,7 @@ export async function deleteTask(id: string): Promise<void> {
     .delete()
     .eq("id", id)
     .eq("user_id", userId)
-    .eq("day", today());
+    .eq("day", taskDayKey());
 
   if (error) {
     throw new Error(error.message);

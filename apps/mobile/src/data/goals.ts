@@ -38,28 +38,43 @@ export async function fetchGoals(): Promise<Goal[]> {
 export async function replaceGoals(labels: string[]): Promise<void> {
   const userId = await requireUserId();
   const supabase = getSupabase();
-  const { error: deleteError } = await supabase
-    .from("goals")
-    .delete()
-    .eq("user_id", userId);
-
-  if (deleteError) {
-    throw new Error(deleteError.message);
-  }
 
   if (labels.length === 0) {
+    const { error } = await supabase
+      .from("goals")
+      .delete()
+      .eq("user_id", userId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
     return;
   }
 
-  const { error: insertError } = await supabase.from("goals").insert(
-    labels.map((label, sortOrder) => ({
-      user_id: userId,
-      label,
-      sort_order: sortOrder,
-    })),
-  );
+  const { data: insertedGoals, error: insertError } = await supabase
+    .from("goals")
+    .insert(
+      labels.map((label, sortOrder) => ({
+        user_id: userId,
+        label,
+        sort_order: sortOrder,
+      })),
+    )
+    .select("id");
 
   if (insertError) {
     throw new Error(insertError.message);
+  }
+
+  const insertedIds = insertedGoals.map(({ id }) => id);
+  const { error: deleteError } = await supabase
+    .from("goals")
+    .delete()
+    .eq("user_id", userId)
+    .not("id", "in", `(${insertedIds.join(",")})`);
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
   }
 }

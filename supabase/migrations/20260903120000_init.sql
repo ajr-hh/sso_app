@@ -9,6 +9,15 @@ create table public.profiles (
   created_at timestamptz not null default now()
 );
 
+create view public.community_profiles
+with (security_barrier = true)
+as
+select id, display_name
+from public.profiles;
+
+revoke all on public.community_profiles from public, anon;
+grant select on public.community_profiles to authenticated;
+
 create table public.goals (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -71,12 +80,6 @@ for all
 to authenticated
 using ((select auth.uid()) = id)
 with check ((select auth.uid()) = id);
-
-create policy "Authenticated members read profiles"
-on public.profiles
-for select
-to authenticated
-using (true);
 
 create policy "Members manage their own goals"
 on public.goals

@@ -45,7 +45,7 @@ export async function fetchPosts(): Promise<CommunityPost[]> {
 
   const userIds = [...new Set(postRows.map((post) => post.user_id))];
   const { data: profiles, error: profilesError } = await supabase
-    .from("profiles")
+    .from("community_profiles")
     .select("id, display_name")
     .in("id", userIds);
 

@@ -65,6 +65,7 @@ describe("community data", () => {
     });
     expect(profileSelect).toHaveBeenCalledWith("id, display_name");
     expect(profileFilter).toHaveBeenCalledWith("id", ["user-2", "user-1"]);
+    expect(from).toHaveBeenNthCalledWith(2, "community_profiles");
   });
 
   test("creates a body-only post for the signed-in member", async () => {
