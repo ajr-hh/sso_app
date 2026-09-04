@@ -43,6 +43,8 @@ export async function saveGoals(
   const supabase = getSupabase();
 
   if (goals.length > 0) {
+    // Conflict on the primary key so re-saving edits the rows an earlier
+    // attempt already created instead of inserting a second copy of each goal.
     const { error: upsertError } = await supabase.from("goals").upsert(
       goals.map(({ id, label }, sortOrder) => ({
         id,
@@ -51,6 +53,7 @@ export async function saveGoals(
         sort_order: sortOrder,
         deleted: false,
       })),
+      { onConflict: "id" },
     );
 
     if (upsertError) {

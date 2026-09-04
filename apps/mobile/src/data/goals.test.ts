@@ -59,22 +59,25 @@ describe("goal data", () => {
       ]),
     ).resolves.toBeUndefined();
 
-    expect(upsert).toHaveBeenCalledWith([
-      {
-        id: "goal-1",
-        user_id: "user-1",
-        label: "First",
-        sort_order: 0,
-        deleted: false,
-      },
-      {
-        id: "goal-2",
-        user_id: "user-1",
-        label: "Second",
-        sort_order: 1,
-        deleted: false,
-      },
-    ]);
+    expect(upsert).toHaveBeenCalledWith(
+      [
+        {
+          id: "goal-1",
+          user_id: "user-1",
+          label: "First",
+          sort_order: 0,
+          deleted: false,
+        },
+        {
+          id: "goal-2",
+          user_id: "user-1",
+          label: "Second",
+          sort_order: 1,
+          deleted: false,
+        },
+      ],
+      { onConflict: "id" },
+    );
     expect(updateGoals).toHaveBeenCalledWith({
       deleted: true,
       deleted_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/),
