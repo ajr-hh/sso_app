@@ -13,20 +13,37 @@ import {
 } from "react-native";
 
 import { ErrorBanner } from "../../../components/ErrorBanner";
+import { YourPeopleSection } from "../../../components/YourPeopleSection";
+import {
+  createAccountabilityContact,
+  fetchAccountabilityContacts,
+  removeAccountabilityContact,
+  type AccountabilityContact,
+  type CreateAccountabilityContactInput,
+} from "../../../src/data/accountabilityContacts";
 import { fetchProfile, saveProfile } from "../../../src/data/profile";
 import { explainError } from "../../../src/lib/errors";
+import {
+  isMotivationOption,
+  MOTIVATION_OPTIONS,
+  MOTIVATION_PROMPT,
+} from "../../../src/presentation/profile";
 import { colors } from "../../../src/theme/colors";
 import type { Profile } from "../../../src/types";
 
-const motivatorOptions = ["Remember why", "The numbers", "Rewards"] as const;
 const coachOptions = ["marcus", "elena"] as const;
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [contacts, setContacts] = useState<AccountabilityContact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [contactsLoading, setContactsLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contactsError, setContactsError] = useState<string | null>(null);
+  const [contactsStatus, setContactsStatus] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [peopleModalVisible, setPeopleModalVisible] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,9 +58,55 @@ export default function ProfileScreen() {
     }
   }, []);
 
+  const loadContacts = useCallback(async () => {
+    setContactsLoading(true);
+    setContactsError(null);
+    try {
+      setContacts(await fetchAccountabilityContacts());
+    } catch (caughtError) {
+      setContactsError(
+        `We couldn’t load your people. ${explainError(caughtError)}`,
+      );
+    } finally {
+      setContactsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadContacts();
+  }, [load, loadContacts]);
+
+  const createContact = async (
+    input: CreateAccountabilityContactInput,
+  ): Promise<AccountabilityContact> => {
+    try {
+      const created = await createAccountabilityContact(input);
+      setContacts((current) => [...current, created]);
+      setContactsStatus("Loved one added.");
+      setContactsError(null);
+      return created;
+    } catch (caughtError) {
+      setContactsError(explainError(caughtError));
+      throw caughtError;
+    }
+  };
+
+  const removeContact = async (
+    contact: AccountabilityContact,
+  ): Promise<void> => {
+    try {
+      await removeAccountabilityContact(contact.id);
+      setContacts((current) =>
+        current.filter(({ id }) => id !== contact.id),
+      );
+      setContactsStatus(`${contact.name} removed.`);
+      setContactsError(null);
+    } catch (caughtError) {
+      setContactsError(explainError(caughtError));
+      throw caughtError;
+    }
+  };
 
   const updateProfile = <Key extends keyof Profile>(
     key: Key,
@@ -94,9 +157,9 @@ export default function ProfileScreen() {
 
         <ProfileFields profile={profile} update={updateProfile} />
         <ChoiceSection
-          options={motivatorOptions}
+          options={MOTIVATION_OPTIONS}
           selected={profile.motivators}
-          title="What motivates you"
+          title={MOTIVATION_PROMPT}
           update={(value) => updateProfile("motivators", value)}
         />
         <ChoiceSection
@@ -105,10 +168,26 @@ export default function ProfileScreen() {
           title="Coach style"
           update={(value) => updateProfile("coach_style", value)}
         />
+        <YourPeopleSection
+          contacts={contacts}
+          loading={contactsLoading}
+          loadError={contactsError}
+          modalVisible={peopleModalVisible}
+          onCreate={createContact}
+          onModalVisibleChange={setPeopleModalVisible}
+          onRemove={removeContact}
+          onRetry={() => void loadContacts()}
+          status={contactsStatus}
+        />
         <Button
           disabled={busy}
           label={busy ? "Saving…" : "Save profile"}
           onPress={async () => {
+            if (!isMotivationOption(profile.motivators)) {
+              setError("Choose how you want to be motivated.");
+              return;
+            }
+
             setBusy(true);
             setError(null);
             try {
