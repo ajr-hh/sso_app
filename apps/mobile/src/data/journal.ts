@@ -29,7 +29,7 @@ export async function fetchJournal(): Promise<JournalEntry[]> {
     .from("journal_entries")
     .select("id, mood, body, created_at")
     .eq("user_id", userId)
-    .is("deleted_at", null)
+    .eq("deleted", false)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -66,7 +66,7 @@ export async function updateJournalEntry(
     .update({ mood, body })
     .eq("id", id)
     .eq("user_id", userId)
-    .is("deleted_at", null);
+    .eq("deleted", false);
 
   if (error) {
     throw new Error(error.message);
@@ -77,10 +77,10 @@ export async function deleteJournalEntry(id: string): Promise<void> {
   const userId = await requireUserId();
   const { error } = await getSupabase()
     .from("journal_entries")
-    .update({ deleted_at: new Date().toISOString() })
+    .update({ deleted: true, deleted_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", userId)
-    .is("deleted_at", null);
+    .eq("deleted", false);
 
   if (error) {
     throw new Error(error.message);

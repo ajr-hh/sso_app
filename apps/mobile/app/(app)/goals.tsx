@@ -14,15 +14,17 @@ import {
 
 import { BackControl } from "../../components/BackControl";
 import { ErrorBanner } from "../../components/ErrorBanner";
-import { fetchGoals, replaceGoals, type Goal } from "../../src/data/goals";
+import { fetchGoals, saveGoals } from "../../src/data/goals";
 import { explainError } from "../../src/lib/errors";
+import { newId } from "../../src/lib/ids";
 import { shouldShowGoalsInitialLoadFailure } from "../../src/presentation/goals";
 import { colors } from "../../src/theme/colors";
 
 export default function GoalsScreen() {
   const router = useRouter();
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [goalLabels, setGoalLabels] = useState<string[]>([]);
+  const [goalDrafts, setGoalDrafts] = useState<
+    { id: string; label: string }[]
+  >([]);
   const [newGoal, setNewGoal] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -37,12 +39,15 @@ export default function GoalsScreen() {
     setError(null);
     try {
       const nextGoals = await fetchGoals();
-      setGoals(nextGoals);
-      setGoalLabels(nextGoals.map((goal) => goal.label));
+      setGoalDrafts(
+        nextGoals.map(({ id, label }) => ({
+          id,
+          label,
+        })),
+      );
       setHasLoaded(true);
     } catch (caughtError) {
-      setGoals([]);
-      setGoalLabels([]);
+      setGoalDrafts([]);
       setLoadError(explainError(caughtError));
     } finally {
       setLoading(false);
@@ -99,15 +104,15 @@ export default function GoalsScreen() {
         ) : null}
 
         <View style={styles.card}>
-          {goalLabels.map((label, index) => (
-            <View key={goals[index]?.id ?? `new-${index}`} style={styles.row}>
+          {goalDrafts.map((goal, index) => (
+            <View key={goal.id} style={styles.row}>
               <TextInput
                 accessibilityLabel={`Goal ${index + 1}`}
                 editable={!busy}
                 onChangeText={(value) => {
-                  setGoalLabels((current) =>
-                    current.map((item, itemIndex) =>
-                      itemIndex === index ? value : item,
+                  setGoalDrafts((current) =>
+                    current.map((item) =>
+                      item.id === goal.id ? { ...item, label: value } : item,
                     ),
                   );
                   setSaved(false);
@@ -115,7 +120,7 @@ export default function GoalsScreen() {
                 placeholder="Enter a goal"
                 placeholderTextColor={colors.body}
                 style={[styles.input, styles.rowInput]}
-                value={label}
+                value={goal.label}
               />
               <Pressable
                 accessibilityLabel={`Remove goal ${index + 1}`}
@@ -123,8 +128,8 @@ export default function GoalsScreen() {
                 disabled={busy}
                 hitSlop={8}
                 onPress={() => {
-                  setGoalLabels((current) =>
-                    current.filter((_, itemIndex) => itemIndex !== index),
+                  setGoalDrafts((current) =>
+                    current.filter((item) => item.id !== goal.id),
                   );
                   setSaved(false);
                 }}
@@ -138,7 +143,10 @@ export default function GoalsScreen() {
             onAdd={() => {
               const label = newGoal.trim();
               if (!label) return;
-              setGoalLabels((current) => [...current, label]);
+              setGoalDrafts((current) => [
+                ...current,
+                { id: newId(), label },
+              ]);
               setNewGoal("");
               setSaved(false);
             }}
@@ -155,12 +163,18 @@ export default function GoalsScreen() {
             setBusy(true);
             setError(null);
             try {
-              await replaceGoals(
-                goalLabels.map((label) => label.trim()).filter(Boolean),
+              await saveGoals(
+                goalDrafts
+                  .map(({ id, label }) => ({ id, label: label.trim() }))
+                  .filter(({ label }) => Boolean(label)),
               );
               const nextGoals = await fetchGoals();
-              setGoals(nextGoals);
-              setGoalLabels(nextGoals.map((goal) => goal.label));
+              setGoalDrafts(
+                nextGoals.map(({ id, label }) => ({
+                  id,
+                  label,
+                })),
+              );
               setSaved(true);
             } catch (caughtError) {
               setError(explainError(caughtError));

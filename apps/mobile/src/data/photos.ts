@@ -5,6 +5,7 @@ import {
   type HardTruthTag,
   type PhotoMode,
 } from "../lib/domain";
+import { newId } from "../lib/ids";
 import { getSupabase } from "../lib/supabase";
 import { logSosEvent, type SosPath } from "./sos";
 
@@ -33,18 +34,6 @@ export type SaveReinforcementPhotoInput = {
   uri: string;
   width: number;
 };
-
-function photoId(): string {
-  if (typeof globalThis.crypto?.randomUUID === "function") {
-    return globalThis.crypto.randomUUID();
-  }
-
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (token) => {
-    const random = Math.floor(Math.random() * 16);
-    const value = token === "x" ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
 
 async function compressPhoto(uri: string, width: number): Promise<string> {
   const context = ImageManipulator.manipulate(uri);
@@ -98,7 +87,7 @@ export async function saveReinforcementPhoto(
   }
 
   const blob = await response.blob();
-  const storageKey = `${userId}/${photoId()}.jpg`;
+  const storageKey = `${userId}/${newId()}.jpg`;
   const supabase = getSupabase();
   const { error: uploadError } = await supabase.storage
     .from(PHOTOS_BUCKET)
@@ -140,7 +129,7 @@ export async function fetchPhotos(
     .from("reinforcement_photos")
     .select("id, user_id, storage_key, caption, tag, mode, created_at")
     .eq("mode", mode)
-    .is("deleted_at", null)
+    .eq("deleted", false)
     .order("created_at", { ascending: false });
 
   if (error) {

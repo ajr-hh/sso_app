@@ -24,7 +24,7 @@ describe("profile data", () => {
     };
     const single = jest.fn().mockResolvedValue({ data: row, error: null });
     const activeFilter = jest.fn().mockReturnValue({ single });
-    const idFilter = jest.fn().mockReturnValue({ is: activeFilter });
+    const idFilter = jest.fn().mockReturnValue({ eq: activeFilter });
     const select = jest.fn().mockReturnValue({ eq: idFilter });
     mockedGetSupabase.mockReturnValue({
       auth: {
@@ -41,12 +41,12 @@ describe("profile data", () => {
       id: "user-1",
     });
     expect(idFilter).toHaveBeenCalledWith("id", "user-1");
-    expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
+    expect(activeFilter).toHaveBeenCalledWith("deleted", false);
   });
 
   test("saves only an active profile", async () => {
     const activeFilter = jest.fn().mockResolvedValue({ error: null });
-    const idFilter = jest.fn().mockReturnValue({ is: activeFilter });
+    const idFilter = jest.fn().mockReturnValue({ eq: activeFilter });
     const update = jest.fn().mockReturnValue({ eq: idFilter });
     mockedGetSupabase.mockReturnValue({
       auth: {
@@ -60,6 +60,6 @@ describe("profile data", () => {
 
     await expect(saveProfile({ display_name: "Alex" })).resolves.toBeUndefined();
     expect(update).toHaveBeenCalledWith({ display_name: "Alex" });
-    expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
+    expect(activeFilter).toHaveBeenCalledWith("deleted", false);
   });
 });

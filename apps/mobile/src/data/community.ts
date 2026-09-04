@@ -32,7 +32,7 @@ export async function fetchPosts(): Promise<CommunityPost[]> {
   const { data: posts, error: postsError } = await supabase
     .from("community_posts")
     .select("id, user_id, body, created_at")
-    .is("deleted_at", null)
+    .eq("deleted", false)
     .order("created_at", { ascending: false });
 
   if (postsError) {
@@ -88,10 +88,10 @@ export async function deletePost(id: string): Promise<void> {
   const userId = await requireUserId();
   const { error } = await getSupabase()
     .from("community_posts")
-    .update({ deleted_at: new Date().toISOString() })
+    .update({ deleted: true, deleted_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", userId)
-    .is("deleted_at", null);
+    .eq("deleted", false);
 
   if (error) {
     throw new Error(error.message);

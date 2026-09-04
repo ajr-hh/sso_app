@@ -26,7 +26,7 @@ describe("updateTask", () => {
 
   test("updates the label for the signed-in user's task today", async () => {
     const activeFilter = jest.fn().mockResolvedValue({ error: null });
-    const dayFilter = jest.fn().mockReturnValue({ is: activeFilter });
+    const dayFilter = jest.fn().mockReturnValue({ eq: activeFilter });
     const userFilter = jest.fn().mockReturnValue({ eq: dayFilter });
     const idFilter = jest.fn().mockReturnValue({ eq: userFilter });
     const update = jest.fn().mockReturnValue({ eq: idFilter });
@@ -46,14 +46,14 @@ describe("updateTask", () => {
     expect(idFilter).toHaveBeenCalledWith("id", "task-1");
     expect(userFilter).toHaveBeenCalledWith("user_id", "user-1");
     expect(dayFilter).toHaveBeenCalledWith("day", taskDayKey());
-    expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
+    expect(activeFilter).toHaveBeenCalledWith("deleted", false);
   });
 
   test("propagates Supabase update errors", async () => {
     const activeFilter = jest.fn().mockResolvedValue({
       error: { message: "Task update failed" },
     });
-    const dayFilter = jest.fn().mockReturnValue({ is: activeFilter });
+    const dayFilter = jest.fn().mockReturnValue({ eq: activeFilter });
     const userFilter = jest.fn().mockReturnValue({ eq: dayFilter });
     const idFilter = jest.fn().mockReturnValue({ eq: userFilter });
     const update = jest.fn().mockReturnValue({ eq: idFilter });
@@ -81,7 +81,7 @@ describe("task active rows", () => {
   test("fetches only active tasks for today", async () => {
     const order = jest.fn().mockResolvedValue({ data: [], error: null });
     const activeFilter = jest.fn().mockReturnValue({ order });
-    const dayFilter = jest.fn().mockReturnValue({ is: activeFilter });
+    const dayFilter = jest.fn().mockReturnValue({ eq: activeFilter });
     const ownerFilter = jest.fn().mockReturnValue({ eq: dayFilter });
     const select = jest.fn().mockReturnValue({ eq: ownerFilter });
     mockedGetSupabase.mockReturnValue({
@@ -95,12 +95,12 @@ describe("task active rows", () => {
     } as never);
 
     await expect(fetchTasks()).resolves.toEqual([]);
-    expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
+    expect(activeFilter).toHaveBeenCalledWith("deleted", false);
   });
 
   test("toggles only an active task", async () => {
     const activeFilter = jest.fn().mockResolvedValue({ error: null });
-    const dayFilter = jest.fn().mockReturnValue({ is: activeFilter });
+    const dayFilter = jest.fn().mockReturnValue({ eq: activeFilter });
     const ownerFilter = jest.fn().mockReturnValue({ eq: dayFilter });
     const idFilter = jest.fn().mockReturnValue({ eq: ownerFilter });
     const update = jest.fn().mockReturnValue({ eq: idFilter });
@@ -119,12 +119,12 @@ describe("task active rows", () => {
     expect(idFilter).toHaveBeenCalledWith("id", "task-1");
     expect(ownerFilter).toHaveBeenCalledWith("user_id", "user-1");
     expect(dayFilter).toHaveBeenCalledWith("day", taskDayKey());
-    expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
+    expect(activeFilter).toHaveBeenCalledWith("deleted", false);
   });
 
   test("soft-deletes only the signed-in user's active task today", async () => {
     const activeFilter = jest.fn().mockResolvedValue({ error: null });
-    const dayFilter = jest.fn().mockReturnValue({ is: activeFilter });
+    const dayFilter = jest.fn().mockReturnValue({ eq: activeFilter });
     const ownerFilter = jest.fn().mockReturnValue({ eq: dayFilter });
     const idFilter = jest.fn().mockReturnValue({ eq: ownerFilter });
     const update = jest.fn().mockReturnValue({ eq: idFilter });
@@ -140,12 +140,13 @@ describe("task active rows", () => {
 
     await expect(deleteTask("task-1")).resolves.toBeUndefined();
     expect(update).toHaveBeenCalledWith({
+      deleted: true,
       deleted_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/),
     });
     expect(idFilter).toHaveBeenCalledWith("id", "task-1");
     expect(ownerFilter).toHaveBeenCalledWith("user_id", "user-1");
     expect(dayFilter).toHaveBeenCalledWith("day", taskDayKey());
-    expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
+    expect(activeFilter).toHaveBeenCalledWith("deleted", false);
   });
 
   test("propagates task soft-delete failures", async () => {
@@ -163,7 +164,7 @@ describe("task active rows", () => {
         update: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
             eq: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({ is: activeFilter }),
+              eq: jest.fn().mockReturnValue({ eq: activeFilter }),
             }),
           }),
         }),

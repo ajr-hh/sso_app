@@ -33,9 +33,12 @@ Legacy reference: [`docs/clickable-prototype.html`](./docs/clickable-prototype.h
 
 ### Data deletion
 
-Ordinary deletion in the app is a soft delete: the database row is retained
-and hidden from normal app reads. Deleting a Supabase Auth account is permanent
-account erasure and cascades to that member's app data.
+Ordinary deletion in the app is a soft delete: it sets `deleted = true` and
+`deleted_at`, while retaining the database row. The app only shows rows where
+`deleted` is false. Re-run the whole
+[`supabase/migrations/20260903120000_init.sql`](./supabase/migrations/20260903120000_init.sql)
+file for these changes to take effect. Deleting a Supabase Auth account is
+permanent account erasure and cascades to that member's app data.
 
 The legacy Next.js wireframe uses Prisma separately. If you run that reference
 app against an existing database, apply its migrations with:

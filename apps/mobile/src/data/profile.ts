@@ -25,7 +25,7 @@ export async function fetchProfile(): Promise<Profile> {
       "id, display_name, age, phone, why_matters, motivators, coach_style",
     )
     .eq("id", user.id)
-    .is("deleted_at", null)
+    .eq("deleted", false)
     .single();
 
   if (error) {
@@ -52,7 +52,7 @@ export async function saveProfile(
     .from("profiles")
     .update(patch)
     .eq("id", user.id)
-    .is("deleted_at", null);
+    .eq("deleted", false);
 
   if (error) {
     throw new Error(error.message);

@@ -14,6 +14,14 @@ create table if not exists public.profiles (
 
 alter table public.profiles add column if not exists phone text;
 alter table public.profiles add column if not exists deleted_at timestamptz;
+alter table public.profiles
+add column if not exists deleted boolean not null default false;
+
+-- Ordinary app deletes set deleted = true plus deleted_at; rows are never
+-- removed. Deleting the Auth account is still permanent erasure.
+update public.profiles
+set deleted = true
+where deleted_at is not null and deleted = false;
 
 -- Preserve phone values entered through the earlier combined contact field.
 do $$
@@ -39,7 +47,7 @@ with (security_barrier = true)
 as
 select id, display_name
 from public.profiles
-where deleted_at is null;
+where deleted = false;
 
 revoke all on public.community_profiles from public, anon;
 grant select on public.community_profiles to authenticated;
@@ -94,38 +102,76 @@ create table if not exists public.community_posts (
 
 alter table public.goals
 add column if not exists deleted_at timestamptz;
+alter table public.goals
+add column if not exists deleted boolean not null default false;
 alter table public.daily_tasks
 add column if not exists deleted_at timestamptz;
+alter table public.daily_tasks
+add column if not exists deleted boolean not null default false;
 alter table public.journal_entries
 add column if not exists deleted_at timestamptz;
+alter table public.journal_entries
+add column if not exists deleted boolean not null default false;
 alter table public.sos_events
 add column if not exists deleted_at timestamptz;
+alter table public.sos_events
+add column if not exists deleted boolean not null default false;
 alter table public.reinforcement_photos
 add column if not exists deleted_at timestamptz;
+alter table public.reinforcement_photos
+add column if not exists deleted boolean not null default false;
 alter table public.community_posts
 add column if not exists deleted_at timestamptz;
+alter table public.community_posts
+add column if not exists deleted boolean not null default false;
+
+update public.goals
+set deleted = true
+where deleted_at is not null and deleted = false;
+update public.daily_tasks
+set deleted = true
+where deleted_at is not null and deleted = false;
+update public.journal_entries
+set deleted = true
+where deleted_at is not null and deleted = false;
+update public.sos_events
+set deleted = true
+where deleted_at is not null and deleted = false;
+update public.reinforcement_photos
+set deleted = true
+where deleted_at is not null and deleted = false;
+update public.community_posts
+set deleted = true
+where deleted_at is not null and deleted = false;
 
 -- Superseded: the profiles primary key already serves single-row lookups.
 drop index if exists public.profiles_active_id_idx;
 
-create index if not exists goals_active_user_sort_idx
+drop index if exists public.goals_active_user_sort_idx;
+drop index if exists public.daily_tasks_active_user_day_idx;
+drop index if exists public.journal_entries_active_user_created_idx;
+drop index if exists public.sos_events_active_user_created_idx;
+drop index if exists public.reinforcement_photos_active_user_mode_created_idx;
+drop index if exists public.community_posts_active_created_idx;
+
+create index goals_active_user_sort_idx
 on public.goals (user_id, sort_order)
-where deleted_at is null;
-create index if not exists daily_tasks_active_user_day_idx
+where deleted = false;
+create index daily_tasks_active_user_day_idx
 on public.daily_tasks (user_id, day, id)
-where deleted_at is null;
-create index if not exists journal_entries_active_user_created_idx
+where deleted = false;
+create index journal_entries_active_user_created_idx
 on public.journal_entries (user_id, created_at desc)
-where deleted_at is null;
-create index if not exists sos_events_active_user_created_idx
+where deleted = false;
+create index sos_events_active_user_created_idx
 on public.sos_events (user_id, created_at desc)
-where deleted_at is null;
-create index if not exists reinforcement_photos_active_user_mode_created_idx
+where deleted = false;
+create index reinforcement_photos_active_user_mode_created_idx
 on public.reinforcement_photos (user_id, mode, created_at desc)
-where deleted_at is null;
-create index if not exists community_posts_active_created_idx
+where deleted = false;
+create index community_posts_active_created_idx
 on public.community_posts (created_at desc)
-where deleted_at is null;
+where deleted = false;
 
 alter table public.profiles enable row level security;
 alter table public.goals enable row level security;
@@ -141,16 +187,15 @@ drop policy if exists "Members insert their active profile" on public.profiles;
 drop policy if exists "Members update their active profile" on public.profiles;
 create policy "Members select their active profile"
 on public.profiles for select to authenticated
-using ((select auth.uid()) = id and deleted_at is null);
+using ((select auth.uid()) = id);
 create policy "Members insert their active profile"
 on public.profiles for insert to authenticated
-with check ((select auth.uid()) = id and deleted_at is null);
--- Profiles have no app delete path. The update policy keeps the row active,
--- so a raw PATCH cannot tombstone it. Auth account deletion remains erasure.
+with check ((select auth.uid()) = id);
+-- Profiles have no app delete path. Column grants below prevent tombstoning.
 create policy "Members update their active profile"
 on public.profiles for update to authenticated
-using ((select auth.uid()) = id and deleted_at is null)
-with check ((select auth.uid()) = id and deleted_at is null);
+using ((select auth.uid()) = id)
+with check ((select auth.uid()) = id);
 
 drop policy if exists "Members manage their own goals" on public.goals;
 drop policy if exists "Members select their active goals" on public.goals;
@@ -158,13 +203,13 @@ drop policy if exists "Members insert their active goals" on public.goals;
 drop policy if exists "Members update their active goals" on public.goals;
 create policy "Members select their active goals"
 on public.goals for select to authenticated
-using ((select auth.uid()) = user_id and deleted_at is null);
+using ((select auth.uid()) = user_id);
 create policy "Members insert their active goals"
 on public.goals for insert to authenticated
-with check ((select auth.uid()) = user_id and deleted_at is null);
+with check ((select auth.uid()) = user_id);
 create policy "Members update their active goals"
 on public.goals for update to authenticated
-using ((select auth.uid()) = user_id and deleted_at is null)
+using ((select auth.uid()) = user_id)
 with check ((select auth.uid()) = user_id);
 
 drop policy if exists "Members manage their own daily tasks" on public.daily_tasks;
@@ -173,13 +218,13 @@ drop policy if exists "Members insert their active daily tasks" on public.daily_
 drop policy if exists "Members update their active daily tasks" on public.daily_tasks;
 create policy "Members select their active daily tasks"
 on public.daily_tasks for select to authenticated
-using ((select auth.uid()) = user_id and deleted_at is null);
+using ((select auth.uid()) = user_id);
 create policy "Members insert their active daily tasks"
 on public.daily_tasks for insert to authenticated
-with check ((select auth.uid()) = user_id and deleted_at is null);
+with check ((select auth.uid()) = user_id);
 create policy "Members update their active daily tasks"
 on public.daily_tasks for update to authenticated
-using ((select auth.uid()) = user_id and deleted_at is null)
+using ((select auth.uid()) = user_id)
 with check ((select auth.uid()) = user_id);
 
 drop policy if exists "Members manage their own journal entries" on public.journal_entries;
@@ -188,13 +233,13 @@ drop policy if exists "Members insert their active journal entries" on public.jo
 drop policy if exists "Members update their active journal entries" on public.journal_entries;
 create policy "Members select their active journal entries"
 on public.journal_entries for select to authenticated
-using ((select auth.uid()) = user_id and deleted_at is null);
+using ((select auth.uid()) = user_id);
 create policy "Members insert their active journal entries"
 on public.journal_entries for insert to authenticated
-with check ((select auth.uid()) = user_id and deleted_at is null);
+with check ((select auth.uid()) = user_id);
 create policy "Members update their active journal entries"
 on public.journal_entries for update to authenticated
-using ((select auth.uid()) = user_id and deleted_at is null)
+using ((select auth.uid()) = user_id)
 with check ((select auth.uid()) = user_id);
 
 drop policy if exists "Members manage their own SOS events" on public.sos_events;
@@ -203,13 +248,13 @@ drop policy if exists "Members insert their active SOS events" on public.sos_eve
 drop policy if exists "Members update their active SOS events" on public.sos_events;
 create policy "Members select their active SOS events"
 on public.sos_events for select to authenticated
-using ((select auth.uid()) = user_id and deleted_at is null);
+using ((select auth.uid()) = user_id);
 create policy "Members insert their active SOS events"
 on public.sos_events for insert to authenticated
-with check ((select auth.uid()) = user_id and deleted_at is null);
+with check ((select auth.uid()) = user_id);
 create policy "Members update their active SOS events"
 on public.sos_events for update to authenticated
-using ((select auth.uid()) = user_id and deleted_at is null)
+using ((select auth.uid()) = user_id)
 with check ((select auth.uid()) = user_id);
 
 drop policy if exists "Members manage their own reinforcement photos" on public.reinforcement_photos;
@@ -218,13 +263,13 @@ drop policy if exists "Members insert their active reinforcement photos" on publ
 drop policy if exists "Members update their active reinforcement photos" on public.reinforcement_photos;
 create policy "Members select their active reinforcement photos"
 on public.reinforcement_photos for select to authenticated
-using ((select auth.uid()) = user_id and deleted_at is null);
+using ((select auth.uid()) = user_id);
 create policy "Members insert their active reinforcement photos"
 on public.reinforcement_photos for insert to authenticated
-with check ((select auth.uid()) = user_id and deleted_at is null);
+with check ((select auth.uid()) = user_id);
 create policy "Members update their active reinforcement photos"
 on public.reinforcement_photos for update to authenticated
-using ((select auth.uid()) = user_id and deleted_at is null)
+using ((select auth.uid()) = user_id)
 with check ((select auth.uid()) = user_id);
 
 drop policy if exists "Authenticated members read community posts" on public.community_posts;
@@ -234,16 +279,16 @@ drop policy if exists "Authenticated members select active community posts" on p
 drop policy if exists "Members insert their active community posts" on public.community_posts;
 drop policy if exists "Members update their active community posts" on public.community_posts;
 -- The community feed is shared: every authenticated member may read every
--- active post, so this policy deliberately checks only deleted_at.
+-- active post.
 create policy "Authenticated members select active community posts"
 on public.community_posts for select to authenticated
-using (deleted_at is null);
+using (deleted = false);
 create policy "Members insert their active community posts"
 on public.community_posts for insert to authenticated
-with check ((select auth.uid()) = user_id and deleted_at is null);
+with check ((select auth.uid()) = user_id);
 create policy "Members update their active community posts"
 on public.community_posts for update to authenticated
-using ((select auth.uid()) = user_id and deleted_at is null)
+using ((select auth.uid()) = user_id)
 with check ((select auth.uid()) = user_id);
 
 revoke delete on table
@@ -259,7 +304,7 @@ from authenticated;
 -- The community update policy exists only to soft-delete. Column-level grants
 -- stop an owner from rewriting the body of a post others have already read.
 revoke update on table public.community_posts from authenticated;
-grant update (deleted_at) on table public.community_posts to authenticated;
+grant update (deleted, deleted_at) on table public.community_posts to authenticated;
 
 -- Profiles cannot be app-deleted. Grant only the fields saveProfile writes.
 revoke update on table public.profiles from authenticated;

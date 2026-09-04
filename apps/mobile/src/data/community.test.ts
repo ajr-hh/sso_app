@@ -31,7 +31,7 @@ describe("community data", () => {
       .fn()
       .mockResolvedValue({ data: posts, error: null });
     const activePosts = jest.fn().mockReturnValue({ order: postOrder });
-    const postSelect = jest.fn().mockReturnValue({ is: activePosts });
+    const postSelect = jest.fn().mockReturnValue({ eq: activePosts });
     const profileFilter = jest.fn().mockResolvedValue({
       data: [
         { id: "user-1", display_name: "Alex Rivera" },
@@ -61,7 +61,7 @@ describe("community data", () => {
     expect(postSelect).toHaveBeenCalledWith(
       "id, user_id, body, created_at",
     );
-    expect(activePosts).toHaveBeenCalledWith("deleted_at", null);
+    expect(activePosts).toHaveBeenCalledWith("deleted", false);
     expect(postOrder).toHaveBeenCalledWith("created_at", {
       ascending: false,
     });
@@ -93,7 +93,7 @@ describe("community data", () => {
 
   test("soft-deletes only an active post owned by the signed-in member", async () => {
     const activeFilter = jest.fn().mockResolvedValue({ error: null });
-    const ownerFilter = jest.fn().mockReturnValue({ is: activeFilter });
+    const ownerFilter = jest.fn().mockReturnValue({ eq: activeFilter });
     const postFilter = jest.fn().mockReturnValue({ eq: ownerFilter });
     const update = jest.fn().mockReturnValue({ eq: postFilter });
     mockedGetSupabase.mockReturnValue({
@@ -108,11 +108,12 @@ describe("community data", () => {
 
     await expect(deletePost("post-1")).resolves.toBe(undefined);
     expect(update).toHaveBeenCalledWith({
+      deleted: true,
       deleted_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/),
     });
     expect(postFilter).toHaveBeenCalledWith("id", "post-1");
     expect(ownerFilter).toHaveBeenCalledWith("user_id", "user-1");
-    expect(activeFilter).toHaveBeenCalledWith("deleted_at", null);
+    expect(activeFilter).toHaveBeenCalledWith("deleted", false);
   });
 
   test("propagates post soft-delete failures", async () => {
@@ -129,7 +130,7 @@ describe("community data", () => {
       from: jest.fn().mockReturnValue({
         update: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({ is: activeFilter }),
+            eq: jest.fn().mockReturnValue({ eq: activeFilter }),
           }),
         }),
       }),
@@ -150,7 +151,7 @@ describe("community data", () => {
         .fn()
         .mockReturnValueOnce({
           select: jest.fn().mockReturnValue({
-            is: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
               order: jest.fn().mockResolvedValue({
                 data: [
                   {

@@ -26,7 +26,7 @@ export async function fetchGoals(): Promise<Goal[]> {
     .from("goals")
     .select("id, label, sort_order")
     .eq("user_id", userId)
-    .is("deleted_at", null)
+    .eq("deleted", false)
     .order("sort_order", { ascending: true });
 
   if (error) {
@@ -36,46 +36,46 @@ export async function fetchGoals(): Promise<Goal[]> {
   return data;
 }
 
-export async function replaceGoals(labels: string[]): Promise<void> {
+export async function saveGoals(
+  goals: { id: string; label: string }[],
+): Promise<void> {
   const userId = await requireUserId();
   const supabase = getSupabase();
 
-  if (labels.length === 0) {
-    const { error } = await supabase
-      .from("goals")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("user_id", userId)
-      .is("deleted_at", null);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return;
-  }
-
-  const { data: insertedGoals, error: insertError } = await supabase
-    .from("goals")
-    .insert(
-      labels.map((label, sortOrder) => ({
+  if (goals.length > 0) {
+    const { error: upsertError } = await supabase.from("goals").upsert(
+      goals.map(({ id, label }, sortOrder) => ({
+        id,
         user_id: userId,
         label,
         sort_order: sortOrder,
+        deleted: false,
       })),
-    )
-    .select("id");
+    );
 
-  if (insertError) {
-    throw new Error(insertError.message);
+    if (upsertError) {
+      throw new Error(upsertError.message);
+    }
   }
 
-  const insertedIds = insertedGoals.map(({ id }) => id);
-  const { error: deleteError } = await supabase
+  let deleteQuery = supabase
     .from("goals")
-    .update({ deleted_at: new Date().toISOString() })
+    .update({
+      deleted: true,
+      deleted_at: new Date().toISOString(),
+    })
     .eq("user_id", userId)
-    .is("deleted_at", null)
-    .not("id", "in", `(${insertedIds.join(",")})`);
+    .eq("deleted", false);
+
+  if (goals.length > 0) {
+    deleteQuery = deleteQuery.not(
+      "id",
+      "in",
+      `(${goals.map(({ id }) => id).join(",")})`,
+    );
+  }
+
+  const { error: deleteError } = await deleteQuery;
 
   if (deleteError) {
     throw new Error(deleteError.message);
