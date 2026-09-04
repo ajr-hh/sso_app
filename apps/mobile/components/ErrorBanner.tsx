@@ -1,4 +1,11 @@
-import { StyleSheet, Text, View } from "react-native";
+import { useEffect } from "react";
+import {
+  AccessibilityInfo,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { colors } from "../src/theme/colors";
 
@@ -6,10 +13,20 @@ type ErrorBannerProps = {
   message: string;
 };
 
+export function shouldExplicitlyAnnounceError(platform: string): boolean {
+  return platform === "ios";
+}
+
 export function ErrorBanner({ message }: ErrorBannerProps) {
+  useEffect(() => {
+    if (shouldExplicitlyAnnounceError(Platform.OS)) {
+      AccessibilityInfo.announceForAccessibility(message);
+    }
+  }, [message]);
+
   return (
     <View
-      accessibilityLiveRegion="assertive"
+      accessibilityLiveRegion={Platform.OS === "android" ? "assertive" : "none"}
       accessibilityRole="alert"
       style={styles.banner}
     >

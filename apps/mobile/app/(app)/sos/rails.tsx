@@ -1,5 +1,5 @@
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { ErrorBanner } from "../../../components/ErrorBanner";
 import {
@@ -8,21 +8,30 @@ import {
   SosLoading,
   SosScreen,
 } from "../../../components/SosUi";
-import { fetchProfile } from "../../../src/data/profile";
-import { rankRails, type RailId } from "../../../src/lib/domain";
+import { fetchProfile, saveRailOrder } from "../../../src/data/profile";
+import { orderRails, type RailId } from "../../../src/lib/domain";
 import { explainError } from "../../../src/lib/errors";
+import { createRailOrderSync } from "../../../src/presentation/rails";
 import type { Profile } from "../../../src/types";
 
 export default function RailsScreen() {
+  const orderSync = useRef(createRailOrderSync());
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const token = orderSync.current.beginLoad();
     setError(null);
     try {
-      setProfile(await fetchProfile());
+      const loaded = await fetchProfile();
+      // A reorder saved since this fetch started is the newer truth.
+      if (orderSync.current.shouldApplyLoad(token)) {
+        setProfile(loaded);
+      }
     } catch (caughtError) {
-      setError(explainError(caughtError));
+      if (orderSync.current.shouldApplyLoad(token)) {
+        setError(explainError(caughtError));
+      }
     }
   }, []);
 
@@ -33,30 +42,58 @@ export default function RailsScreen() {
   );
 
   if (!profile && !error) {
-    return <SosLoading label="Loading your support plan…" />;
+    return (
+      <SosScreen eyebrow="RIGHT NOW" showBack title="Choose your reset">
+        <SosLoading label="Loading your support plan…" />
+      </SosScreen>
+    );
   }
 
   if (!profile) {
     return (
-      <SosScreen eyebrow="RIGHT NOW" title="Choose your reset">
+      <SosScreen eyebrow="RIGHT NOW" showBack title="Choose your reset">
         {error ? <ErrorBanner message={error} /> : null}
         <SosButton label="Try again" onPress={load} />
       </SosScreen>
     );
   }
 
-  const rails: { id: RailId; title: string }[] = rankRails(
-    profile.motivators.split(","),
-  );
+  const rails = orderRails(profile.rail_order);
+
+  const persistOrder = async (ids: RailId[]) => {
+    const previousOrder = profile.rail_order;
+    const token = orderSync.current.beginSave();
+    setError(null);
+    setProfile((current) => (current ? { ...current, rail_order: ids } : current));
+    try {
+      await saveRailOrder(ids);
+    } catch (caughtError) {
+      // Only undo this save while it is still the order on screen.
+      if (orderSync.current.shouldRollbackSave(token)) {
+        setProfile((current) =>
+          current ? { ...current, rail_order: previousOrder } : current,
+        );
+      }
+      setError(explainError(caughtError));
+      throw caughtError;
+    } finally {
+      orderSync.current.finishSave(token);
+    }
+  };
 
   return (
     <SosScreen
       eyebrow="RIGHT NOW"
-      subtitle="Start with what motivates you most, or choose another reset."
+      showBack
+      subtitle="Choose the support that fits this moment."
       title="Choose your reset"
     >
       {error ? <ErrorBanner message={error} /> : null}
-      <RailList path="off_the_rails" rails={rails} />
+      <RailList
+        onOrderChange={persistOrder}
+        path="off_the_rails"
+        rails={rails}
+      />
     </SosScreen>
   );
 }

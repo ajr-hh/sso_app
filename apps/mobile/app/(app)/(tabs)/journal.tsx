@@ -4,6 +4,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -62,15 +63,12 @@ export default function JournalScreen() {
     }
   }, []);
 
-  const reportError = useCallback(
-    (caughtError: unknown) => {
-      const message = explainError(caughtError);
-      setStatus(null);
-      setError(message);
-      announce(message);
-    },
-    [announce],
-  );
+  // ErrorBanner announces the message itself on iOS, so announcing here too
+  // would read every failure twice.
+  const reportError = useCallback((caughtError: unknown) => {
+    setStatus(null);
+    setError(explainError(caughtError));
+  }, []);
 
   const reportStatus = useCallback(
     (message: string) => {
@@ -272,6 +270,7 @@ export default function JournalScreen() {
                 } else {
                   await addJournalEntry(mood, body.trim());
                 }
+                Keyboard.dismiss();
                 setEntries(await fetchJournal());
                 if (composerToken.current === submittedToken) {
                   resetComposer();

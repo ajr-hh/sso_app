@@ -47,12 +47,24 @@ export default function MessagesScreen() {
   );
 
   if (!profile && !error) {
-    return <SosLoading label="Loading your coach messages…" />;
+    return (
+      <SosScreen
+        eyebrow="COACH MESSAGES"
+        showBack
+        title="A voice in your corner"
+      >
+        <SosLoading label="Loading your coach messages…" />
+      </SosScreen>
+    );
   }
 
   if (!profile) {
     return (
-      <SosScreen eyebrow="COACH MESSAGES" title="A voice in your corner">
+      <SosScreen
+        eyebrow="COACH MESSAGES"
+        showBack
+        title="A voice in your corner"
+      >
         {error ? <ErrorBanner message={error} /> : null}
         <SosButton label="Try again" onPress={load} />
       </SosScreen>
@@ -64,6 +76,7 @@ export default function MessagesScreen() {
   return (
     <SosScreen
       eyebrow={`${coachName.toUpperCase()} SAYS`}
+      showBack
       subtitle="Read one slowly. Let it interrupt the story in your head."
       title="A voice in your corner"
     >

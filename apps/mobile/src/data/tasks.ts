@@ -42,17 +42,23 @@ export async function fetchTasks(): Promise<DailyTask[]> {
   return data;
 }
 
-export async function addTask(label: string): Promise<void> {
+export async function addTask(label: string): Promise<DailyTask> {
   const userId = await requireUserId();
-  const { error } = await getSupabase().from("daily_tasks").insert({
-    user_id: userId,
-    label,
-    day: taskDayKey(),
-  });
+  const { data, error } = await getSupabase()
+    .from("daily_tasks")
+    .insert({
+      user_id: userId,
+      label,
+      day: taskDayKey(),
+    })
+    .select("id, label, done")
+    .single();
 
   if (error) {
     throw new Error(error.message);
   }
+
+  return data;
 }
 
 export async function toggleTask(id: string, done: boolean): Promise<void> {

@@ -62,12 +62,20 @@ export default function RewardsScreen() {
   );
 
   if (!summary && !error) {
-    return <SosLoading label="Counting your small wins…" />;
+    return (
+      <SosScreen eyebrow="SMALL WINS" showBack title="Progress is still progress">
+        <SosLoading label="Counting your small wins…" />
+      </SosScreen>
+    );
   }
 
   if (!summary) {
     return (
-      <SosScreen eyebrow="SMALL WINS" title="Progress is still progress">
+      <SosScreen
+        eyebrow="SMALL WINS"
+        showBack
+        title="Progress is still progress"
+      >
         {error ? <ErrorBanner message={error} /> : null}
         <SosButton label="Try again" onPress={load} />
       </SosScreen>
@@ -77,6 +85,7 @@ export default function RewardsScreen() {
   return (
     <SosScreen
       eyebrow="SMALL WINS"
+      showBack
       subtitle="You have evidence that you can keep showing up."
       title="Progress is still progress"
     >

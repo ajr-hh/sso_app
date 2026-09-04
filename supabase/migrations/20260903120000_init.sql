@@ -9,10 +9,13 @@ create table if not exists public.profiles (
   why_matters text,
   motivators text not null default 'Remember why',
   coach_style text not null default 'marcus',
+  rail_order text[] not null default '{}',
   created_at timestamptz not null default now()
 );
 
 alter table public.profiles add column if not exists phone text;
+alter table public.profiles
+add column if not exists rail_order text[] not null default '{}';
 alter table public.profiles add column if not exists deleted_at timestamptz;
 alter table public.profiles
 add column if not exists deleted boolean not null default false;
@@ -314,7 +317,8 @@ grant update (
   phone,
   why_matters,
   motivators,
-  coach_style
+  coach_style,
+  rail_order
 ) on table public.profiles to authenticated;
 
 create or replace function public.handle_new_user()

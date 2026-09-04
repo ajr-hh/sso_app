@@ -7,6 +7,7 @@ export default function HardTruthsScreen() {
   return (
     <SosScreen
       eyebrow="HARD TRUTHS"
+      showBack
       subtitle="Use your own photo and words to remember what changed."
       title="Remember what changed"
     >

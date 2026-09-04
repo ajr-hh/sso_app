@@ -36,51 +36,64 @@ export async function fetchGoals(): Promise<Goal[]> {
   return data;
 }
 
-export async function saveGoals(
-  goals: { id: string; label: string }[],
-): Promise<void> {
+export async function addGoal(label: string): Promise<Goal> {
   const userId = await requireUserId();
   const supabase = getSupabase();
+  const { data: lastGoals, error: sortError } = await supabase
+    .from("goals")
+    .select("sort_order")
+    .eq("user_id", userId)
+    .eq("deleted", false)
+    .order("sort_order", { ascending: false })
+    .limit(1);
 
-  if (goals.length > 0) {
-    // Conflict on the primary key so re-saving edits the rows an earlier
-    // attempt already created instead of inserting a second copy of each goal.
-    const { error: upsertError } = await supabase.from("goals").upsert(
-      goals.map(({ id, label }, sortOrder) => ({
-        id,
-        user_id: userId,
-        label,
-        sort_order: sortOrder,
-        deleted: false,
-      })),
-      { onConflict: "id" },
-    );
-
-    if (upsertError) {
-      throw new Error(upsertError.message);
-    }
+  if (sortError) {
+    throw new Error(sortError.message);
   }
 
-  let deleteQuery = supabase
+  const nextSortOrder = (lastGoals?.[0]?.sort_order ?? -1) + 1;
+  const { data, error } = await supabase
     .from("goals")
-    .update({
-      deleted: true,
-      deleted_at: new Date().toISOString(),
+    .insert({
+      user_id: userId,
+      label,
+      sort_order: nextSortOrder,
+      deleted: false,
     })
+    .select("id, label, sort_order")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+export async function updateGoal(id: string, label: string): Promise<void> {
+  const userId = await requireUserId();
+  const { error } = await getSupabase()
+    .from("goals")
+    .update({ label })
+    .eq("id", id)
     .eq("user_id", userId)
     .eq("deleted", false);
 
-  if (goals.length > 0) {
-    deleteQuery = deleteQuery.not(
-      "id",
-      "in",
-      `(${goals.map(({ id }) => id).join(",")})`,
-    );
+  if (error) {
+    throw new Error(error.message);
   }
+}
 
-  const { error: deleteError } = await deleteQuery;
+export async function deleteGoal(id: string): Promise<void> {
+  const userId = await requireUserId();
+  const { error } = await getSupabase()
+    .from("goals")
+    .update({ deleted: true, deleted_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .eq("deleted", false);
 
-  if (deleteError) {
-    throw new Error(deleteError.message);
+  if (error) {
+    throw new Error(error.message);
   }
 }

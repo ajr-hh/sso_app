@@ -1,5 +1,5 @@
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { ErrorBanner } from "../../../components/ErrorBanner";
@@ -12,22 +12,31 @@ import {
   sosTextStyles,
 } from "../../../components/SosUi";
 import { PLANNED_TIPS } from "../../../src/content/planned-tips";
-import { fetchProfile } from "../../../src/data/profile";
-import { rankRails } from "../../../src/lib/domain";
+import { fetchProfile, saveRailOrder } from "../../../src/data/profile";
+import { orderRails, type RailId } from "../../../src/lib/domain";
 import { explainError } from "../../../src/lib/errors";
+import { createRailOrderSync } from "../../../src/presentation/rails";
 import { colors } from "../../../src/theme/colors";
 import type { Profile } from "../../../src/types";
 
 export default function PlannedScreen() {
+  const orderSync = useRef(createRailOrderSync());
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const token = orderSync.current.beginLoad();
     setError(null);
     try {
-      setProfile(await fetchProfile());
+      const loaded = await fetchProfile();
+      // A reorder saved since this fetch started is the newer truth.
+      if (orderSync.current.shouldApplyLoad(token)) {
+        setProfile(loaded);
+      }
     } catch (caughtError) {
-      setError(explainError(caughtError));
+      if (orderSync.current.shouldApplyLoad(token)) {
+        setError(explainError(caughtError));
+      }
     }
   }, []);
 
@@ -38,21 +47,49 @@ export default function PlannedScreen() {
   );
 
   if (!profile && !error) {
-    return <SosLoading label="Building your event plan…" />;
+    return (
+      <SosScreen eyebrow="PLAN AHEAD" showBack title="Set yourself up">
+        <SosLoading label="Building your event plan…" />
+      </SosScreen>
+    );
   }
 
   if (!profile) {
     return (
-      <SosScreen eyebrow="PLAN AHEAD" title="Set yourself up">
+      <SosScreen eyebrow="PLAN AHEAD" showBack title="Set yourself up">
         {error ? <ErrorBanner message={error} /> : null}
         <SosButton label="Try again" onPress={load} />
       </SosScreen>
     );
   }
 
+  const rails = orderRails(profile.rail_order);
+
+  const persistOrder = async (ids: RailId[]) => {
+    const previousOrder = profile.rail_order;
+    const token = orderSync.current.beginSave();
+    setError(null);
+    setProfile((current) => (current ? { ...current, rail_order: ids } : current));
+    try {
+      await saveRailOrder(ids);
+    } catch (caughtError) {
+      // Only undo this save while it is still the order on screen.
+      if (orderSync.current.shouldRollbackSave(token)) {
+        setProfile((current) =>
+          current ? { ...current, rail_order: previousOrder } : current,
+        );
+      }
+      setError(explainError(caughtError));
+      throw caughtError;
+    } finally {
+      orderSync.current.finishSave(token);
+    }
+  };
+
   return (
     <SosScreen
       eyebrow="PLAN AHEAD"
+      showBack
       subtitle="A few decisions now make the event easier later."
       title="Set yourself up"
     >
@@ -70,8 +107,9 @@ export default function PlannedScreen() {
       </SosCard>
       <Text style={styles.nextTitle}>Choose a reinforcement</Text>
       <RailList
+        onOrderChange={persistOrder}
         path="planned_event"
-        rails={rankRails(profile.motivators.split(","))}
+        rails={rails}
       />
     </SosScreen>
   );

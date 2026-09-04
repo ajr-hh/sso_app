@@ -22,7 +22,8 @@ Legacy reference: [`docs/clickable-prototype.html`](./docs/clickable-prototype.h
 3. In the Supabase SQL editor, apply the whole of
    [`supabase/migrations/20260903120000_init.sql`](./supabase/migrations/20260903120000_init.sql).
    It is idempotent, so re-run the entire file after pulling schema updates
-   (including to enable soft delete) or if a partial run ever fails.
+   (including profile rail-order persistence and soft delete) or if a partial
+   run ever fails.
 4. Start the dev server:
 
    ```bash

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -45,6 +46,7 @@ export default function SignInScreen() {
 
     try {
       await sendEmailCode(getSupabase().auth, email);
+      Keyboard.dismiss();
       setCode("");
       setCodeSent(true);
     } catch (caughtError) {
@@ -61,6 +63,7 @@ export default function SignInScreen() {
 
     try {
       await verifyEmailCode(getSupabase().auth, email, code);
+      Keyboard.dismiss();
     } catch (caughtError) {
       setError(explainError(caughtError));
     } finally {

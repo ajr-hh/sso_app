@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
   Pressable,
   StyleSheet,
   Text,
@@ -116,6 +117,7 @@ export function PhotoComposer({ mode, path }: Props) {
         uri: draft.uri,
         width: draft.width,
       });
+      Keyboard.dismiss();
       setPhotos(await fetchPhotos(mode));
       setDraft(null);
       setCaption("");

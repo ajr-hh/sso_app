@@ -3,9 +3,9 @@ import {
   RAIL_OPTIONS,
   addDays,
   initialsFromName,
-  isPreferredRail,
+  isRailId,
   journalStreak,
-  rankRails,
+  orderRails,
   toDayKey,
   validateReinforcementPhoto,
 } from "./domain";
@@ -94,29 +94,72 @@ describe("validateReinforcementPhoto", () => {
 });
 
 describe("rails", () => {
-  test("defines the six v1 rails without a live call", () => {
-    expect(RAIL_OPTIONS).toHaveLength(6);
-    expect(RAIL_OPTIONS.map(({ id }) => id)).toEqual([
+  test("defines seven rails in alphabetical title order with icons", () => {
+    expect(RAIL_OPTIONS).toEqual([
+      { icon: "nutrition", id: "food", title: "Better Choices" },
+      { icon: "chat", id: "messages", title: "Coach Messages" },
+      { icon: "bolt", id: "hard_truths", title: "Hard Truths" },
+      { icon: "favorite", id: "why", title: "Remember Your Why" },
+      { icon: "redeem", id: "rewards", title: "Small Wins" },
+      { icon: "call", id: "call", title: "Talk to Someone" },
+      { icon: "chart_data", id: "stats", title: "The Numbers" },
+    ]);
+  });
+
+  test("defaults to canonical alphabetical order", () => {
+    expect(orderRails(null)).toEqual(RAIL_OPTIONS);
+    expect(orderRails([])).toEqual(RAIL_OPTIONS);
+  });
+
+  test("recognizes only supported rail IDs at runtime", () => {
+    expect(isRailId("call")).toBe(true);
+    expect(isRailId("unknown")).toBe(false);
+    expect(isRailId(7)).toBe(false);
+    expect(isRailId(null)).toBe(false);
+  });
+
+  test("honors a valid saved order", () => {
+    expect(
+      orderRails([
+        "why",
+        "stats",
+        "call",
+        "messages",
+        "food",
+        "rewards",
+        "hard_truths",
+      ]).map(({ id }) => id),
+    ).toEqual([
       "why",
-      "hard_truths",
       "stats",
+      "call",
+      "messages",
+      "food",
       "rewards",
+      "hard_truths",
+    ]);
+  });
+
+  test("ignores invalid saved values and appends missing rails alphabetically", () => {
+    expect(
+      orderRails([
+        "stats",
+        "unknown",
+        7,
+        null,
+        { id: "call" },
+        "stats",
+        "why",
+      ]).map(({ id }) => id),
+    ).toEqual([
+      "stats",
+      "why",
       "food",
       "messages",
+      "hard_truths",
+      "rewards",
+      "call",
     ]);
-    expect(RAIL_OPTIONS.some(({ title }) => /call/i.test(title))).toBe(false);
-  });
-
-  test("ranks recognized motivators and ignores a live call", () => {
-    const ranked = rankRails(["The numbers", "A live call"]);
-
-    expect(ranked[0].id).toBe("stats");
-    expect(ranked.some(({ id }) => id === ("call" as never))).toBe(false);
-  });
-
-  test("identifies whether a rail matches a preferred motivator", () => {
-    expect(isPreferredRail("why", ["Remember why"])).toBe(true);
-    expect(isPreferredRail("food", ["Remember why"])).toBe(false);
   });
 });
 

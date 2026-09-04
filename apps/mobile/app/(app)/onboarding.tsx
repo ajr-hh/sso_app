@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -36,6 +37,7 @@ export default function OnboardingScreen() {
         display_name: displayName.trim(),
         why_matters: whyMatters.trim(),
       });
+      Keyboard.dismiss();
       router.replace("/(app)/(tabs)/home");
     } catch (caughtError) {
       setError(explainError(caughtError));
@@ -49,7 +51,10 @@ export default function OnboardingScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       style={styles.flex}
     >
-      <ScrollView contentContainerStyle={styles.screen}>
+      <ScrollView
+        contentContainerStyle={styles.screen}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.heading}>
           <Text style={styles.eyebrow}>WELCOME</Text>
           <Text style={styles.title}>Let’s set you up</Text>

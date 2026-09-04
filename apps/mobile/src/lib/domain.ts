@@ -16,27 +16,38 @@ export type RailId =
   | "stats"
   | "rewards"
   | "food"
-  | "messages";
+  | "messages"
+  | "call";
 
 export type RailOption = {
   id: RailId;
   title: string;
+  icon:
+    | "favorite"
+    | "bolt"
+    | "chart_data"
+    | "redeem"
+    | "nutrition"
+    | "call"
+    | "chat";
 };
 
 export const RAIL_OPTIONS: readonly RailOption[] = [
-  { id: "why", title: "Remember Your Why" },
-  { id: "hard_truths", title: "Hard Truths" },
-  { id: "stats", title: "The Numbers" },
-  { id: "rewards", title: "Small Wins" },
-  { id: "food", title: "Better Choices" },
-  { id: "messages", title: "Coach Messages" },
+  { icon: "nutrition", id: "food", title: "Better Choices" },
+  { icon: "chat", id: "messages", title: "Coach Messages" },
+  { icon: "bolt", id: "hard_truths", title: "Hard Truths" },
+  { icon: "favorite", id: "why", title: "Remember Your Why" },
+  { icon: "redeem", id: "rewards", title: "Small Wins" },
+  { icon: "call", id: "call", title: "Talk to Someone" },
+  { icon: "chart_data", id: "stats", title: "The Numbers" },
 ];
 
-const MOTIVATOR_RAILS: Readonly<Record<string, RailId>> = {
-  "remember why": "why",
-  "the numbers": "stats",
-  rewards: "rewards",
-};
+const RAIL_BY_ID = new Map(RAIL_OPTIONS.map((rail) => [rail.id, rail]));
+const RAIL_IDS = new Set<string>(RAIL_OPTIONS.map(({ id }) => id));
+
+export function isRailId(value: unknown): value is RailId {
+  return typeof value === "string" && RAIL_IDS.has(value);
+}
 
 const padDatePart = (value: number): string => String(value).padStart(2, "0");
 
@@ -118,23 +129,24 @@ export function validateReinforcementPhoto(
   return { ok: true };
 }
 
-function railForMotivator(motivator: string): RailId | undefined {
-  return MOTIVATOR_RAILS[motivator.trim().toLowerCase()];
-}
+export function orderRails(
+  savedOrder: readonly unknown[] | null | undefined,
+): RailOption[] {
+  const ordered: RailOption[] = [];
+  const seen = new Set<RailId>();
 
-export function isPreferredRail(
-  railId: RailId,
-  motivators: readonly string[],
-): boolean {
-  return motivators.some(
-    (motivator) => railForMotivator(motivator) === railId,
-  );
-}
+  for (const id of savedOrder ?? []) {
+    if (isRailId(id) && !seen.has(id)) {
+      seen.add(id);
+      ordered.push(RAIL_BY_ID.get(id)!);
+    }
+  }
 
-export function rankRails(motivators: readonly string[]): RailOption[] {
-  return [...RAIL_OPTIONS].sort(
-    (left, right) =>
-      Number(isPreferredRail(right.id, motivators)) -
-      Number(isPreferredRail(left.id, motivators)),
-  );
+  for (const rail of RAIL_OPTIONS) {
+    if (!seen.has(rail.id)) {
+      ordered.push(rail);
+    }
+  }
+
+  return ordered;
 }

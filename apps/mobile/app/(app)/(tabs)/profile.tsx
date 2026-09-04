@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -120,6 +121,7 @@ export default function ProfileScreen() {
                 coach_style: profile.coach_style,
               });
               setSaved(true);
+              Keyboard.dismiss();
             } catch (caughtError) {
               setError(explainError(caughtError));
             } finally {

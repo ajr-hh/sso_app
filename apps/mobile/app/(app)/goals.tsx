@@ -1,7 +1,9 @@
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,37 +16,74 @@ import {
 
 import { BackControl } from "../../components/BackControl";
 import { ErrorBanner } from "../../components/ErrorBanner";
-import { fetchGoals, saveGoals } from "../../src/data/goals";
+import {
+  addGoal,
+  deleteGoal,
+  fetchGoals,
+  updateGoal,
+  type Goal,
+} from "../../src/data/goals";
 import { explainError } from "../../src/lib/errors";
-import { newId } from "../../src/lib/ids";
-import { shouldShowGoalsInitialLoadFailure } from "../../src/presentation/goals";
+import { createPendingSubmissions } from "../../src/lib/pendingSubmissions";
+import {
+  getGoalStatusMessage,
+  shouldAnnounceGoalStatus,
+  shouldShowGoalsInitialLoadFailure,
+} from "../../src/presentation/goals";
+import {
+  beginLabelChange,
+  forgetLabelIntention,
+  getIntendedLabel,
+  restoreLabel,
+  settleLabelChange,
+  type LabelIntentions,
+} from "../../src/presentation/labels";
 import { colors } from "../../src/theme/colors";
+
+type GoalDraft = Goal & { savedLabel: string };
+
+function toGoalDrafts(goals: Goal[]): GoalDraft[] {
+  return goals.map((goal) => ({ ...goal, savedLabel: goal.label }));
+}
 
 export default function GoalsScreen() {
   const router = useRouter();
-  const [goalDrafts, setGoalDrafts] = useState<
-    { id: string; label: string }[]
-  >([]);
+  const actionQueue = useRef<Promise<void>>(Promise.resolve());
+  const intendedGoalLabels = useRef<LabelIntentions>(new Map());
+  const removedGoalIds = useRef(new Set<string>());
+  const pendingAdds = useRef(createPendingSubmissions());
+  const statusSequence = useRef(0);
+  const [goalDrafts, setGoalDrafts] = useState<GoalDraft[]>([]);
   const [newGoal, setNewGoal] = useState("");
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [status, setStatus] = useState<{
+    message: string;
+    sequence: number;
+  } | null>(null);
+
+  const reportStatus = useCallback((message: string) => {
+    setError(null);
+    statusSequence.current += 1;
+    setStatus({ message, sequence: statusSequence.current });
+    if (shouldAnnounceGoalStatus(Platform.OS)) {
+      AccessibilityInfo.announceForAccessibilityWithOptions(message, {
+        queue: true,
+      });
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     setError(null);
+    setStatus(null);
     try {
       const nextGoals = await fetchGoals();
-      setGoalDrafts(
-        nextGoals.map(({ id, label }) => ({
-          id,
-          label,
-        })),
-      );
+      intendedGoalLabels.current = new Map();
+      setGoalDrafts(toGoalDrafts(nextGoals));
       setHasLoaded(true);
     } catch (caughtError) {
       setGoalDrafts([]);
@@ -52,11 +91,26 @@ export default function GoalsScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setGoalDrafts]);
 
   useEffect(() => {
+    // Initial loading state is already true; the async load owns subsequent updates.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  const runGoalAction = useCallback(async (action: () => Promise<void>) => {
+    const run = async () => {
+      try {
+        await action();
+      } catch (caughtError) {
+        setStatus(null);
+        setError(explainError(caughtError));
+      }
+    };
+    actionQueue.current = actionQueue.current.then(run, run);
+    await actionQueue.current;
+  }, []);
 
   if (loading) {
     return (
@@ -97,25 +151,98 @@ export default function GoalsScreen() {
         </View>
 
         {error ? <ErrorBanner message={error} /> : null}
-        {saved ? (
-          <Text accessibilityLiveRegion="polite" style={styles.saved}>
-            Goals saved.
-          </Text>
-        ) : null}
+        <Text
+          accessibilityLabel={
+            Platform.OS === "android" && status
+              ? `${status.message} Status ${status.sequence}.`
+              : undefined
+          }
+          accessibilityLiveRegion={
+            Platform.OS === "android" ? "polite" : undefined
+          }
+          style={styles.status}
+        >
+          {status?.message ?? ""}
+        </Text>
 
         <View style={styles.card}>
-          {goalDrafts.map((goal, index) => (
+          {goalDrafts.map((goal) => (
             <View key={goal.id} style={styles.row}>
               <TextInput
-                accessibilityLabel={`Goal ${index + 1}`}
-                editable={!busy}
+                accessibilityLabel="Goal"
                 onChangeText={(value) => {
                   setGoalDrafts((current) =>
                     current.map((item) =>
                       item.id === goal.id ? { ...item, label: value } : item,
                     ),
                   );
-                  setSaved(false);
+                }}
+                onEndEditing={(event) => {
+                  if (removedGoalIds.current.has(goal.id)) return;
+                  const draftLabel = event.nativeEvent.text;
+                  const intendedLabel = getIntendedLabel(
+                    intendedGoalLabels.current,
+                    goal.id,
+                    goal.savedLabel,
+                  );
+                  const label = restoreLabel(draftLabel, intendedLabel);
+                  if (!draftLabel.trim() || label === intendedLabel) {
+                    setGoalDrafts((current) =>
+                      current.map((item) =>
+                        item.id === goal.id ? { ...item, label } : item,
+                      ),
+                    );
+                    return;
+                  }
+                  const started = beginLabelChange(
+                    intendedGoalLabels.current,
+                    goal.id,
+                    goal.savedLabel,
+                    label,
+                  );
+                  intendedGoalLabels.current = started.intentions;
+                  void runGoalAction(async () => {
+                    try {
+                      await updateGoal(goal.id, label);
+                      const settled = settleLabelChange(
+                        intendedGoalLabels.current,
+                        started.change,
+                        true,
+                      );
+                      intendedGoalLabels.current = settled.intentions;
+                      setGoalDrafts((current) =>
+                        current.map((item) =>
+                          item.id === goal.id
+                            ? {
+                                ...item,
+                                label:
+                                  item.label === draftLabel ? label : item.label,
+                                savedLabel: label,
+                              }
+                            : item,
+                        ),
+                      );
+                      reportStatus(getGoalStatusMessage("updated", label));
+                    } catch (caughtError) {
+                      const settled = settleLabelChange(
+                        intendedGoalLabels.current,
+                        started.change,
+                        false,
+                      );
+                      intendedGoalLabels.current = settled.intentions;
+                      if (settled.rollbackLabel !== undefined) {
+                        const rollbackLabel = settled.rollbackLabel;
+                        setGoalDrafts((current) =>
+                          current.map((item) =>
+                            item.id === goal.id && item.label === draftLabel
+                              ? { ...item, label: rollbackLabel }
+                              : item,
+                          ),
+                        );
+                      }
+                      throw caughtError;
+                    }
+                  });
                 }}
                 placeholder="Enter a goal"
                 placeholderTextColor={colors.body}
@@ -123,15 +250,31 @@ export default function GoalsScreen() {
                 value={goal.label}
               />
               <Pressable
-                accessibilityLabel={`Remove goal ${index + 1}`}
+                accessibilityLabel={`Remove goal: ${goal.label.trim() || goal.savedLabel}`}
                 accessibilityRole="button"
-                disabled={busy}
                 hitSlop={8}
                 onPress={() => {
-                  setGoalDrafts((current) =>
-                    current.filter((item) => item.id !== goal.id),
-                  );
-                  setSaved(false);
+                  if (removedGoalIds.current.has(goal.id)) return;
+                  removedGoalIds.current.add(goal.id);
+                  Keyboard.dismiss();
+                  const label = goal.label.trim() || goal.savedLabel;
+                  void runGoalAction(async () => {
+                    try {
+                      await deleteGoal(goal.id);
+                      setGoalDrafts((current) =>
+                        current.filter((item) => item.id !== goal.id),
+                      );
+                      intendedGoalLabels.current = forgetLabelIntention(
+                        intendedGoalLabels.current,
+                        goal.id,
+                      );
+                      removedGoalIds.current.delete(goal.id);
+                      reportStatus(getGoalStatusMessage("removed", label));
+                    } catch (caughtError) {
+                      removedGoalIds.current.delete(goal.id);
+                      throw caughtError;
+                    }
+                  });
                 }}
               >
                 <Text style={styles.removeText}>Remove</Text>
@@ -139,16 +282,30 @@ export default function GoalsScreen() {
             </View>
           ))}
           <AddRow
-            disabled={!newGoal.trim() || busy}
+            accessibilityLabel={`Add goal: ${newGoal.trim() || "enter goal text"}`}
+            disabled={!newGoal.trim()}
             onAdd={() => {
+              Keyboard.dismiss();
               const label = newGoal.trim();
               if (!label) return;
-              setGoalDrafts((current) => [
-                ...current,
-                { id: newId(), label },
-              ]);
-              setNewGoal("");
-              setSaved(false);
+              // A second tap or Return before the queued add resolves would submit
+              // the same text twice, because the field only clears on success.
+              if (!pendingAdds.current.claim(label)) return;
+              void runGoalAction(async () => {
+                try {
+                  const created = await addGoal(label);
+                  setGoalDrafts((current) => [
+                    ...current,
+                    { ...created, savedLabel: created.label },
+                  ]);
+                  setNewGoal((current) =>
+                    current.trim() === label ? "" : current,
+                  );
+                  reportStatus(getGoalStatusMessage("added", created.label));
+                } finally {
+                  pendingAdds.current.release(label);
+                }
+              });
             }}
             onChange={setNewGoal}
             placeholder="Add a goal"
@@ -156,45 +313,20 @@ export default function GoalsScreen() {
           />
         </View>
 
-        <Button
-          disabled={busy}
-          label={busy ? "Saving…" : "Save goals"}
-          onPress={async () => {
-            setBusy(true);
-            setError(null);
-            try {
-              await saveGoals(
-                goalDrafts
-                  .map(({ id, label }) => ({ id, label: label.trim() }))
-                  .filter(({ label }) => Boolean(label)),
-              );
-              const nextGoals = await fetchGoals();
-              setGoalDrafts(
-                nextGoals.map(({ id, label }) => ({
-                  id,
-                  label,
-                })),
-              );
-              setSaved(true);
-            } catch (caughtError) {
-              setError(explainError(caughtError));
-            } finally {
-              setBusy(false);
-            }
-          }}
-        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 function AddRow({
+  accessibilityLabel,
   disabled,
   onAdd,
   onChange,
   placeholder,
   value,
 }: {
+  accessibilityLabel: string;
   disabled: boolean;
   onAdd: () => void;
   onChange: (value: string) => void;
@@ -204,7 +336,7 @@ function AddRow({
   return (
     <View style={styles.row}>
       <TextInput
-        accessibilityLabel={placeholder}
+        accessibilityLabel="Goal"
         onChangeText={onChange}
         onSubmitEditing={onAdd}
         placeholder={placeholder}
@@ -212,22 +344,30 @@ function AddRow({
         style={[styles.input, styles.rowInput]}
         value={value}
       />
-      <Button disabled={disabled} label="Add" onPress={onAdd} />
+      <Button
+        accessibilityLabel={accessibilityLabel}
+        disabled={disabled}
+        label="Add"
+        onPress={onAdd}
+      />
     </View>
   );
 }
 
 function Button({
+  accessibilityLabel,
   disabled = false,
   label,
   onPress,
 }: {
+  accessibilityLabel?: string;
   disabled?: boolean;
   label: string;
   onPress: () => void;
 }) {
   return (
     <Pressable
+      accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
@@ -263,7 +403,7 @@ const styles = StyleSheet.create({
   },
   title: { color: colors.ink, fontSize: 36, fontWeight: "800" },
   body: { color: colors.body, fontSize: 16, lineHeight: 22 },
-  saved: { color: "#27633E", fontSize: 15, fontWeight: "700" },
+  status: { color: colors.body, fontSize: 15, lineHeight: 21 },
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,

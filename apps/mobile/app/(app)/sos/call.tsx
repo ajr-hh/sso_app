@@ -1,4 +1,5 @@
-import { useFocusEffect, useRouter } from "expo-router";
+import * as Linking from "expo-linking";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { Text } from "react-native";
 
@@ -10,12 +11,10 @@ import {
   sosTextStyles,
   useSosPath,
 } from "../../../components/SosUi";
-import { STATS } from "../../../src/content/stats";
 import { logSosEvent } from "../../../src/data/sos";
 import { explainError } from "../../../src/lib/errors";
 
-export default function StatsScreen() {
-  const router = useRouter();
+export default function CallScreen() {
   const path = useSosPath();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +22,7 @@ export default function StatsScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      void logSosEvent(path, "stats_view").catch((caughtError) => {
+      void logSosEvent(path, "call").catch((caughtError) => {
         if (active) {
           setError(explainError(caughtError));
         }
@@ -36,32 +35,38 @@ export default function StatsScreen() {
 
   return (
     <SosScreen
-      eyebrow="THE NUMBERS"
+      eyebrow="TALK TO SOMEONE"
       showBack
-      subtitle="Use the facts as a pause, not as a judgment."
-      title="Your next choice matters"
+      subtitle="You do not have to solve this moment alone."
+      title="Call someone safe"
     >
       {error ? <ErrorBanner message={error} /> : null}
-      {STATS.map((stat) => (
-        <SosCard key={stat.title}>
-          <Text style={sosTextStyles.number}>{stat.num}</Text>
-          <Text style={sosTextStyles.sectionTitle}>{stat.title}</Text>
-          <Text style={sosTextStyles.body}>{stat.body}</Text>
-        </SosCard>
-      ))}
+      <SosCard>
+        <Text style={sosTextStyles.sectionTitle}>Choose one steady person</Text>
+        <Text style={sosTextStyles.body}>
+          Think of someone who listens without judging: a partner, friend,
+          family member, sponsor, or coach.
+        </Text>
+        <Text style={sosTextStyles.strong}>
+          “I’m having a hard moment. Can you stay on the phone with me for a few
+          minutes?”
+        </Text>
+      </SosCard>
       <SosButton
         disabled={busy}
-        label={busy ? "Saving…" : "I’m ready for my next choice"}
+        label={busy ? "Opening phone…" : "Open phone"}
         onPress={async () => {
           setBusy(true);
           setError(null);
           try {
-            await logSosEvent(path, "stats_cta");
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace("/(app)/sos");
+            const canCall = await Linking.canOpenURL("tel:");
+            if (!canCall) {
+              setError(
+                "Phone calls are not available on this device. Please call someone safe from another phone.",
+              );
+              return;
             }
+            await Linking.openURL("tel:");
           } catch (caughtError) {
             setError(explainError(caughtError));
           } finally {

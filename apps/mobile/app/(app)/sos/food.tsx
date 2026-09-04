@@ -34,6 +34,7 @@ export default function FoodScreen() {
   return (
     <SosScreen
       eyebrow="BETTER CHOICES"
+      showBack
       subtitle="Name what you want, then choose an option that still feels satisfying."
       title="Make the next swap"
     >

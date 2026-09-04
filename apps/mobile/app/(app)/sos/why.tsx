@@ -7,6 +7,7 @@ export default function WhyScreen() {
   return (
     <SosScreen
       eyebrow="REMEMBER YOUR WHY"
+      showBack
       subtitle="Return to the people, moments, and reasons that matter to you."
       title="Reconnect with your reason"
     >

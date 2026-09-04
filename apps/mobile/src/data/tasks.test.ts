@@ -1,5 +1,6 @@
 import { getSupabase } from "../lib/supabase";
 import {
+  addTask,
   deleteTask,
   fetchTasks,
   taskDayKey,
@@ -12,6 +13,36 @@ jest.mock("../lib/supabase", () => ({
 }));
 
 const mockedGetSupabase = jest.mocked(getSupabase);
+
+describe("addTask", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("returns the inserted task for an immediate local patch", async () => {
+    const created = {
+      id: "task-1",
+      label: "Drink water",
+      done: false,
+    };
+    const single = jest.fn().mockResolvedValue({ data: created, error: null });
+    const select = jest.fn().mockReturnValue({ single });
+    const insert = jest.fn().mockReturnValue({ select });
+    mockedGetSupabase.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: jest.fn().mockReturnValue({ insert }),
+    } as never);
+
+    await expect(addTask("Drink water")).resolves.toEqual(created);
+    expect(select).toHaveBeenCalledWith("id, label, done");
+    expect(single).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("task day keys", () => {
   test("uses the local calendar day late in the evening", () => {
