@@ -1,8 +1,11 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,7 +26,12 @@ import {
 } from "../../../src/data/journal";
 import { explainError } from "../../../src/lib/errors";
 import {
+  describeJournalEntry,
+  getJournalDeleteConfirmation,
+  getJournalEditAnnouncement,
+  getJournalEntryActionLabel,
   getJournalSentimentIcon,
+  getJournalStatusMessage,
   normalizeJournalSentiment,
 } from "../../../src/presentation/journal";
 import { colors } from "../../../src/theme/colors";
@@ -32,7 +40,10 @@ const MOODS = ["Good day", "Tough day", "Mixed"] as const;
 
 export default function JournalScreen() {
   const scrollRef = useRef<ScrollView>(null);
+  const bodyInputRef = useRef<TextInput>(null);
   const formY = useRef(0);
+  // Bumped whenever the composer is retargeted, so a slow save never clears a newer draft.
+  const composerToken = useRef(0);
   const [entries, setEntries] = useState<JournalEntry[] | null>(null);
   const [mood, setMood] = useState<JournalSentiment | "">("");
   const [body, setBody] = useState("");
@@ -41,6 +52,29 @@ export default function JournalScreen() {
   const [saving, setSaving] = useState(false);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const announce = useCallback((message: string) => {
+    AccessibilityInfo.announceForAccessibility(message);
+  }, []);
+
+  const reportError = useCallback(
+    (caughtError: unknown) => {
+      const message = explainError(caughtError);
+      setStatus(null);
+      setError(message);
+      announce(message);
+    },
+    [announce],
+  );
+
+  const reportStatus = useCallback(
+    (message: string) => {
+      setStatus(message);
+      announce(message);
+    },
+    [announce],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,11 +82,11 @@ export default function JournalScreen() {
     try {
       setEntries(await fetchJournal());
     } catch (caughtError) {
-      setError(explainError(caughtError));
+      reportError(caughtError);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [reportError]);
 
   useFocusEffect(
     useCallback(() => {
@@ -61,58 +95,62 @@ export default function JournalScreen() {
   );
 
   const resetComposer = useCallback(() => {
+    composerToken.current += 1;
     setMood("");
     setBody("");
     setEditingEntryId(null);
   }, []);
 
-  const beginEdit = useCallback((entry: JournalEntry) => {
-    setMood(normalizeJournalSentiment(entry.mood));
-    setBody(entry.body);
-    setEditingEntryId(entry.id);
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({
-        animated: true,
-        y: Math.max(formY.current - 16, 0),
+  const beginEdit = useCallback(
+    (entry: JournalEntry) => {
+      composerToken.current += 1;
+      setMood(normalizeJournalSentiment(entry.mood));
+      setBody(entry.body);
+      setEditingEntryId(entry.id);
+      setStatus(null);
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollTo({
+          animated: true,
+          y: Math.max(formY.current - 16, 0),
+        });
+        bodyInputRef.current?.focus();
+        announce(getJournalEditAnnouncement(entry));
       });
-    });
-  }, []);
+    },
+    [announce],
+  );
 
   const confirmDelete = useCallback(
     (entry: JournalEntry) => {
-      Alert.alert(
-        "Delete journal entry?",
-        "This entry will be permanently deleted.",
-        [
-          { style: "cancel", text: "Cancel" },
-          {
-            style: "destructive",
-            text: "Delete",
-            onPress: () => {
-              void (async () => {
-                setDeletingEntryId(entry.id);
-                setError(null);
-                try {
-                  await deleteJournalEntry(entry.id);
-                  if (editingEntryId === entry.id) {
-                    resetComposer();
-                  }
-                  setEntries((current) =>
-                    current?.filter((item) => item.id !== entry.id) ?? null,
-                  );
-                  setEntries(await fetchJournal());
-                } catch (caughtError) {
-                  setError(explainError(caughtError));
-                } finally {
-                  setDeletingEntryId(null);
+      const confirmation = getJournalDeleteConfirmation(entry);
+
+      Alert.alert(confirmation.title, confirmation.message, [
+        { style: "cancel", text: "Cancel" },
+        {
+          style: "destructive",
+          text: "Delete",
+          onPress: () => {
+            void (async () => {
+              setDeletingEntryId(entry.id);
+              setError(null);
+              try {
+                await deleteJournalEntry(entry.id);
+                setEntries(await fetchJournal());
+                if (editingEntryId === entry.id) {
+                  resetComposer();
                 }
-              })();
-            },
+                reportStatus(getJournalStatusMessage("deleted"));
+              } catch (caughtError) {
+                reportError(caughtError);
+              } finally {
+                setDeletingEntryId(null);
+              }
+            })();
           },
-        ],
-      );
+        },
+      ]);
     },
-    [editingEntryId, resetComposer],
+    [editingEntryId, reportError, reportStatus, resetComposer],
   );
 
   if (loading && !entries) {
@@ -133,171 +171,211 @@ export default function JournalScreen() {
     );
   }
 
+  const busy = saving || deletingEntryId !== null;
+
   return (
-    <ScrollView
-      contentContainerStyle={styles.screen}
-      keyboardDismissMode="interactive"
-      keyboardShouldPersistTaps="handled"
-      ref={scrollRef}
+    <KeyboardAvoidingView
+      // Android already resizes the window (softwareKeyboardLayoutMode defaults to "resize"),
+      // so only iOS needs an inset here.
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={styles.flex}
     >
-      <View style={styles.heading}>
-        <Text style={styles.eyebrow}>DAILY CHECK-IN</Text>
-        <Text style={styles.title}>Activity</Text>
-        <Text style={styles.body}>Two minutes. How did today actually go?</Text>
-      </View>
-
-      {error ? <ErrorBanner message={error} /> : null}
-      {loading ? <ActivityIndicator color={colors.ember} /> : null}
-
-      <View
-        onLayout={(event) => {
-          formY.current = event.nativeEvent.layout.y;
-        }}
-        style={styles.card}
+      <ScrollView
+        contentContainerStyle={styles.screen}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        ref={scrollRef}
       >
-        <View style={styles.moods}>
-          {MOODS.map((option) => (
-            <Pressable
-              accessibilityRole="radio"
-              accessibilityState={{ selected: mood === option }}
-              key={option}
-              onPress={() => setMood(option)}
-              style={[styles.mood, mood === option && styles.moodSelected]}
-            >
-              <Text style={styles.moodText}>{option}</Text>
-            </Pressable>
-          ))}
+        <View style={styles.heading}>
+          <Text style={styles.eyebrow}>DAILY CHECK-IN</Text>
+          <Text style={styles.title}>Activity</Text>
+          <Text style={styles.body}>
+            Two minutes. How did today actually go?
+          </Text>
         </View>
-        <TextInput
-          accessibilityLabel="Journal entry"
-          multiline
-          onChangeText={setBody}
-          placeholder="What happened today? What do you want to remember? How are you feeling? What are you proud of today?"
-          style={styles.input}
-          textAlignVertical="top"
-          value={body}
-        />
-        <Button
-          disabled={!mood || !body.trim() || saving}
-          label={
-            saving
-              ? editingEntryId
-                ? "Updating…"
-                : "Saving…"
-              : editingEntryId
-                ? "Update check-in"
-                : "Save check-in"
-          }
-          onPress={async () => {
-            if (!mood) {
-              return;
-            }
-            setSaving(true);
-            setError(null);
-            try {
-              if (editingEntryId) {
-                await updateJournalEntry(editingEntryId, mood, body.trim());
-              } else {
-                await addJournalEntry(mood, body.trim());
-              }
-              resetComposer();
-              setEntries(await fetchJournal());
-            } catch (caughtError) {
-              setError(explainError(caughtError));
-            } finally {
-              setSaving(false);
-            }
-          }}
-        />
-        {editingEntryId ? (
-          <Pressable
-            accessibilityRole="button"
-            disabled={saving}
-            onPress={resetComposer}
-            style={({ pressed }) => [
-              styles.cancelButton,
-              pressed && styles.actionPressed,
-            ]}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </Pressable>
-        ) : null}
-      </View>
 
-      <View style={styles.listHeading}>
-        <Text style={styles.sectionTitle}>Your entries</Text>
-        <Text style={styles.entryCount}>{entries.length}</Text>
-      </View>
-      {entries.length === 0 ? (
-        <View style={styles.card}>
-          <Text style={styles.body}>Your first check-in will appear here.</Text>
+        {error ? <ErrorBanner message={error} /> : null}
+        {status ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            role="status"
+            style={styles.status}
+          >
+            {status}
+          </Text>
+        ) : null}
+        {loading ? <ActivityIndicator color={colors.ember} /> : null}
+
+        <View
+          onLayout={(event) => {
+            formY.current = event.nativeEvent.layout.y;
+          }}
+          style={styles.card}
+        >
+          <View
+            accessibilityLabel="Today's sentiment"
+            accessibilityRole="radiogroup"
+            style={styles.moods}
+          >
+            {MOODS.map((option) => (
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ selected: mood === option }}
+                key={option}
+                onPress={() => setMood(option)}
+                style={[styles.mood, mood === option && styles.moodSelected]}
+              >
+                <Text style={styles.moodText}>{option}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput
+            accessibilityLabel="Journal entry"
+            multiline
+            onChangeText={setBody}
+            placeholder="What happened today? What do you want to remember? How are you feeling? What are you proud of today?"
+            ref={bodyInputRef}
+            style={styles.input}
+            textAlignVertical="top"
+            value={body}
+          />
+          <Button
+            disabled={!mood || !body.trim() || saving}
+            label={
+              saving
+                ? editingEntryId
+                  ? "Updating…"
+                  : "Saving…"
+                : editingEntryId
+                  ? "Update check-in"
+                  : "Save check-in"
+            }
+            onPress={async () => {
+              if (!mood) {
+                return;
+              }
+              const submittedEntryId = editingEntryId;
+              const submittedToken = composerToken.current;
+              setSaving(true);
+              setError(null);
+              try {
+                if (submittedEntryId) {
+                  await updateJournalEntry(submittedEntryId, mood, body.trim());
+                } else {
+                  await addJournalEntry(mood, body.trim());
+                }
+                setEntries(await fetchJournal());
+                if (composerToken.current === submittedToken) {
+                  resetComposer();
+                }
+                reportStatus(
+                  getJournalStatusMessage(
+                    submittedEntryId ? "updated" : "created",
+                  ),
+                );
+              } catch (caughtError) {
+                reportError(caughtError);
+              } finally {
+                setSaving(false);
+              }
+            }}
+          />
+          {editingEntryId ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={saving}
+              onPress={resetComposer}
+              style={({ pressed }) => [
+                styles.cancelButton,
+                pressed && styles.actionPressed,
+              ]}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+          ) : null}
         </View>
-      ) : (
-        entries.map((entry) => (
-          <View key={entry.id} style={[styles.card, styles.entryCard]}>
-            <View style={styles.entryIcon}>
-              <MaterialSymbol
-                color={colors.ember}
-                name={getJournalSentimentIcon(entry.mood)}
-                size={28}
-              />
-            </View>
-            <View style={styles.entryContent}>
-              <Text style={styles.entryBody}>{entry.body}</Text>
-              <View style={styles.entryFooter}>
-                <View style={styles.entryActions}>
-                  <Pressable
-                    accessibilityLabel="Edit journal entry"
-                    accessibilityRole="button"
-                    hitSlop={8}
-                    onPress={() => beginEdit(entry)}
-                    style={({ pressed }) => [
-                      styles.entryAction,
-                      pressed && styles.actionPressed,
-                    ]}
-                  >
-                    <MaterialSymbol color={colors.ink} name="edit" size={18} />
-                    <Text style={styles.entryActionText}>Edit</Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityLabel="Delete journal entry"
-                    accessibilityRole="button"
-                    disabled={deletingEntryId === entry.id}
-                    hitSlop={8}
-                    onPress={() => confirmDelete(entry)}
-                    style={({ pressed }) => [
-                      styles.entryAction,
-                      pressed && styles.actionPressed,
-                    ]}
-                  >
-                    {deletingEntryId === entry.id ? (
-                      <ActivityIndicator color={colors.ember} size="small" />
-                    ) : (
+
+        <View style={styles.listHeading}>
+          <Text style={styles.sectionTitle}>Your entries</Text>
+          <Text style={styles.entryCount}>{entries.length}</Text>
+        </View>
+        {entries.length === 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.body}>
+              Your first check-in will appear here.
+            </Text>
+          </View>
+        ) : (
+          entries.map((entry) => (
+            <View key={entry.id} style={[styles.card, styles.entryCard]}>
+              <View style={styles.entryIcon}>
+                <MaterialSymbol
+                  color={colors.ember}
+                  name={getJournalSentimentIcon(entry.mood)}
+                  size={28}
+                />
+              </View>
+              <View style={styles.entryContent}>
+                <Text style={styles.entryBody}>{entry.body}</Text>
+                <View style={styles.entryFooter}>
+                  <View style={styles.entryActions}>
+                    <Pressable
+                      accessibilityLabel={getJournalEntryActionLabel(
+                        "Edit",
+                        entry,
+                      )}
+                      accessibilityRole="button"
+                      disabled={busy}
+                      onPress={() => beginEdit(entry)}
+                      style={({ pressed }) => [
+                        styles.entryAction,
+                        busy && styles.disabled,
+                        pressed && styles.actionPressed,
+                      ]}
+                    >
                       <MaterialSymbol
-                        color={colors.ember}
-                        name="delete"
+                        color={colors.ink}
+                        name="edit"
                         size={18}
                       />
-                    )}
-                    <Text style={styles.deleteActionText}>Delete</Text>
-                  </Pressable>
+                      <Text style={styles.entryActionText}>Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityLabel={getJournalEntryActionLabel(
+                        "Delete",
+                        entry,
+                      )}
+                      accessibilityRole="button"
+                      disabled={busy}
+                      onPress={() => confirmDelete(entry)}
+                      style={({ pressed }) => [
+                        styles.entryAction,
+                        busy && styles.disabled,
+                        pressed && styles.actionPressed,
+                      ]}
+                    >
+                      {deletingEntryId === entry.id ? (
+                        <ActivityIndicator color={colors.alert} size="small" />
+                      ) : (
+                        <MaterialSymbol
+                          color={colors.alert}
+                          name="delete"
+                          size={18}
+                        />
+                      )}
+                      <Text style={styles.deleteActionText}>Delete</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={styles.entryMeta}>
+                    {describeJournalEntry(entry)}
+                  </Text>
                 </View>
-                <Text style={styles.entryMeta}>
-                  {normalizeJournalSentiment(entry.mood)} ·{" "}
-                  {new Date(entry.created_at).toLocaleString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </Text>
               </View>
             </View>
-          </View>
-        ))
-      )}
-    </ScrollView>
+          ))
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -315,7 +393,9 @@ function Button({ disabled = false, label, onPress }: { disabled?: boolean; labe
 }
 
 const styles = StyleSheet.create({
+  flex: { backgroundColor: colors.canvas, flex: 1 },
   screen: { backgroundColor: colors.canvas, gap: 16, padding: 24, paddingBottom: 48 },
+  status: { color: colors.ink, fontSize: 15, fontWeight: "700" },
   centered: { alignItems: "center", backgroundColor: colors.canvas, flex: 1, gap: 16, justifyContent: "center", padding: 24 },
   heading: { gap: 5 },
   eyebrow: { color: colors.ember, fontSize: 13, fontWeight: "800", letterSpacing: 1.5 },
@@ -340,10 +420,10 @@ const styles = StyleSheet.create({
   entryContent: { flex: 1, gap: 14 },
   entryBody: { color: colors.ink, fontSize: 16, lineHeight: 23 },
   entryFooter: { alignItems: "flex-end", gap: 10 },
-  entryActions: { alignItems: "center", flexDirection: "row", gap: 14 },
-  entryAction: { alignItems: "center", flexDirection: "row", gap: 5, minHeight: 32 },
+  entryActions: { alignItems: "center", flexDirection: "row", gap: 12 },
+  entryAction: { alignItems: "center", flexDirection: "row", gap: 5, justifyContent: "center", minHeight: 44, minWidth: 44, paddingHorizontal: 8 },
   entryActionText: { color: colors.ink, fontSize: 13, fontWeight: "800" },
-  deleteActionText: { color: colors.ember, fontSize: 13, fontWeight: "800" },
+  deleteActionText: { color: colors.alert, fontSize: 13, fontWeight: "800" },
   actionPressed: { opacity: 0.55 },
   entryMeta: { color: colors.body, fontSize: 12, textAlign: "right" },
 });

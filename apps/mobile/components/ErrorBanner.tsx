@@ -8,7 +8,11 @@ type ErrorBannerProps = {
 
 export function ErrorBanner({ message }: ErrorBannerProps) {
   return (
-    <View accessibilityRole="alert" style={styles.banner}>
+    <View
+      accessibilityLiveRegion="assertive"
+      accessibilityRole="alert"
+      style={styles.banner}
+    >
       <Text style={styles.message}>{message}</Text>
     </View>
   );
