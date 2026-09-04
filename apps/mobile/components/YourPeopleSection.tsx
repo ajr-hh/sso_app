@@ -64,17 +64,25 @@ export function YourPeopleSection({
   const [formError, setFormError] = useState<string | null>(null);
   const [tileError, setTileError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [removingIds, setRemovingIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const savingRef = useRef(false);
+  const removingIdsRef = useRef<ReadonlySet<string>>(new Set());
   const nameRef = useRef<TextInput>(null);
 
   const closeModal = () => {
-    if (!saving) {
+    if (!savingRef.current) {
       setFormError(null);
       onModalVisibleChange(false);
     }
   };
 
   const saveContact = async () => {
+    if (savingRef.current) {
+      return;
+    }
+
     const validationError = getAccountabilityContactValidationError(form);
     if (validationError) {
       setFormError(validationError);
@@ -86,6 +94,7 @@ export function YourPeopleSection({
       return;
     }
 
+    savingRef.current = true;
     setSaving(true);
     setFormError(null);
     try {
@@ -100,6 +109,7 @@ export function YourPeopleSection({
     } catch (error) {
       setFormError(explainError(error));
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -114,14 +124,23 @@ export function YourPeopleSection({
           text: "Remove",
           style: "destructive",
           onPress: () => {
-            setRemovingId(contact.id);
+            if (removingIdsRef.current.has(contact.id)) {
+              return;
+            }
+            const nextRemovingIds = new Set(removingIdsRef.current);
+            nextRemovingIds.add(contact.id);
+            removingIdsRef.current = nextRemovingIds;
+            setRemovingIds(nextRemovingIds);
             setTileError(null);
             void onRemove(contact)
               .catch((error: unknown) => {
                 setTileError(explainError(error));
               })
               .finally(() => {
-                setRemovingId(null);
+                const remainingIds = new Set(removingIdsRef.current);
+                remainingIds.delete(contact.id);
+                removingIdsRef.current = remainingIds;
+                setRemovingIds(remainingIds);
               });
           },
         },
@@ -167,7 +186,7 @@ export function YourPeopleSection({
           RELATIONSHIP_OPTIONS.find(
             (option) => option.value === contact.relationship,
           )?.label ?? contact.relationship;
-        const removing = removingId === contact.id;
+        const removing = removingIds.has(contact.id);
 
         return (
           <View key={contact.id} style={styles.contact}>
@@ -180,6 +199,7 @@ export function YourPeopleSection({
             <Pressable
               accessibilityLabel={`Remove ${contact.name}`}
               accessibilityRole="button"
+              accessibilityState={{ busy: removing, disabled: removing }}
               disabled={removing}
               onPress={() => confirmRemove(contact)}
               style={[styles.removeButton, removing && styles.disabled]}
