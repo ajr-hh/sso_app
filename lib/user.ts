@@ -3,18 +3,18 @@ import { DEMO_USER_ID, ensureDemoExtras, seedDemoUser } from "@/lib/seed-data";
 
 const userInclude = {
   goals: {
-    where: { deletedAt: null },
+    where: { deleted: false },
     orderBy: { order: "asc" as const },
   },
   dailyTasks: {
-    where: { deletedAt: null },
+    where: { deleted: false },
     orderBy: { date: "asc" as const },
   },
   journalEntries: { orderBy: { createdAt: "desc" as const } },
   photos: { orderBy: { createdAt: "asc" as const } },
   rewards: { orderBy: { earned: "desc" as const } },
   accountability: { orderBy: { priority: "asc" as const } },
-  pastAttempts: { where: { deletedAt: null } },
+  pastAttempts: { where: { deleted: false } },
   sosEvents: { orderBy: { createdAt: "desc" as const }, take: 8 },
   kryptonite: { orderBy: { order: "asc" as const }, include: { swaps: true } },
   communityPosts: { orderBy: { createdAt: "desc" as const } },

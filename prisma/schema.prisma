@@ -46,9 +46,10 @@ model Goal {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   label     String
   order     Int       @default(0)
+  deleted   Boolean   @default(false)
   deletedAt DateTime?
 
-  @@index([userId, deletedAt, order], map: "Goal_active_user_order_idx")
+  @@index([userId, deleted, order], map: "Goal_active_user_order_idx")
 }
 
 model DailyTask {
@@ -58,9 +59,10 @@ model DailyTask {
   label     String
   done      Boolean   @default(false)
   date      DateTime  @default(now())
+  deleted   Boolean   @default(false)
   deletedAt DateTime?
 
-  @@index([userId, deletedAt, date], map: "DailyTask_active_user_date_idx")
+  @@index([userId, deleted, date], map: "DailyTask_active_user_date_idx")
 }
 
 model JournalEntry {
@@ -77,9 +79,10 @@ model PastAttempt {
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   label     String
+  deleted   Boolean   @default(false)
   deletedAt DateTime?
 
-  @@index([userId, deletedAt], map: "PastAttempt_active_user_idx")
+  @@index([userId, deleted], map: "PastAttempt_active_user_idx")
 }
 
 // User always chooses the photo AND writes the caption.
