@@ -152,8 +152,10 @@ after insert on auth.users
 for each row execute function public.handle_new_user();
 
 insert into storage.buckets (id, name, public)
-values ('sos-photos', 'sos-photos', false);
+values ('sos-photos', 'sos-photos', false)
+on conflict (id) do nothing;
 
+drop policy if exists "Members read their own SOS photos" on storage.objects;
 create policy "Members read their own SOS photos"
 on storage.objects
 for select
@@ -163,6 +165,7 @@ using (
   and (storage.foldername(name))[1] = (select auth.uid())::text
 );
 
+drop policy if exists "Members upload their own SOS photos" on storage.objects;
 create policy "Members upload their own SOS photos"
 on storage.objects
 for insert
@@ -172,6 +175,7 @@ with check (
   and (storage.foldername(name))[1] = (select auth.uid())::text
 );
 
+drop policy if exists "Members delete their own SOS photos" on storage.objects;
 create policy "Members delete their own SOS photos"
 on storage.objects
 for delete
