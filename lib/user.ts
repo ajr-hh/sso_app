@@ -2,13 +2,19 @@ import { prisma } from "@/lib/prisma";
 import { DEMO_USER_ID, ensureDemoExtras, seedDemoUser } from "@/lib/seed-data";
 
 const userInclude = {
-  goals: { orderBy: { order: "asc" as const } },
-  dailyTasks: { orderBy: { date: "asc" as const } },
+  goals: {
+    where: { deletedAt: null },
+    orderBy: { order: "asc" as const },
+  },
+  dailyTasks: {
+    where: { deletedAt: null },
+    orderBy: { date: "asc" as const },
+  },
   journalEntries: { orderBy: { createdAt: "desc" as const } },
   photos: { orderBy: { createdAt: "asc" as const } },
   rewards: { orderBy: { earned: "desc" as const } },
   accountability: { orderBy: { priority: "asc" as const } },
-  pastAttempts: true,
+  pastAttempts: { where: { deletedAt: null } },
   sosEvents: { orderBy: { createdAt: "desc" as const }, take: 8 },
   kryptonite: { orderBy: { order: "asc" as const }, include: { swaps: true } },
   communityPosts: { orderBy: { createdAt: "desc" as const } },

@@ -41,20 +41,26 @@ model User {
 }
 
 model Goal {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  label  String
-  order  Int    @default(0)
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String
+  order     Int       @default(0)
+  deletedAt DateTime?
+
+  @@index([userId, deletedAt, order], map: "Goal_active_user_order_idx")
 }
 
 model DailyTask {
-  id     String   @id @default(cuid())
-  userId String
-  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  label  String
-  done   Boolean  @default(false)
-  date   DateTime @default(now())
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String
+  done      Boolean   @default(false)
+  date      DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([userId, deletedAt, date], map: "DailyTask_active_user_date_idx")
 }
 
 model JournalEntry {
@@ -67,10 +73,13 @@ model JournalEntry {
 }
 
 model PastAttempt {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  label  String
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String
+  deletedAt DateTime?
+
+  @@index([userId, deletedAt], map: "PastAttempt_active_user_idx")
 }
 
 // User always chooses the photo AND writes the caption.

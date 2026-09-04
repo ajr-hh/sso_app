@@ -37,6 +37,13 @@ Ordinary deletion in the app is a soft delete: the database row is retained
 and hidden from normal app reads. Deleting a Supabase Auth account is permanent
 account erasure and cascades to that member's app data.
 
+The legacy Next.js wireframe uses Prisma separately. If you run that reference
+app against an existing database, apply its migrations with:
+
+```bash
+npx prisma migrate deploy
+```
+
 ### Email sign-in codes
 
 Sign-in uses an emailed numeric code, not a magic link, so there is no redirect

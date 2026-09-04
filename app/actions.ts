@@ -6,16 +6,19 @@ import { assertImageFile, signedPhotoUrl, uploadUserPhoto } from "@/lib/supabase
 import { getAppUser } from "@/lib/user";
 
 export async function toggleTask(id: string) {
-  const task = await prisma.dailyTask.findUnique({ where: { id } });
+  const user = await getAppUser();
+  const task = await prisma.dailyTask.findFirst({
+    where: { id, userId: user.id, deletedAt: null },
+  });
   if (!task) return null;
 
-  const updated = await prisma.dailyTask.update({
-    where: { id },
+  const updated = await prisma.dailyTask.updateMany({
+    where: { id, userId: user.id, deletedAt: null },
     data: { done: !task.done },
   });
 
   revalidatePath("/home");
-  return updated;
+  return updated.count === 1 ? { ...task, done: !task.done } : null;
 }
 
 export async function addJournalEntry(mood: string, text: string) {
@@ -140,11 +143,17 @@ export async function saveProfile(input: {
         motivators: input.motivators.join(", ") || "Remember why",
       },
     }),
-    prisma.goal.deleteMany({ where: { userId: user.id } }),
+    prisma.goal.updateMany({
+      where: { userId: user.id, deletedAt: null },
+      data: { deletedAt: new Date() },
+    }),
     prisma.goal.createMany({
       data: goals.map((label, order) => ({ userId: user.id, label, order })),
     }),
-    prisma.pastAttempt.deleteMany({ where: { userId: user.id } }),
+    prisma.pastAttempt.updateMany({
+      where: { userId: user.id, deletedAt: null },
+      data: { deletedAt: new Date() },
+    }),
     prisma.pastAttempt.createMany({
       data: attempts.map((label) => ({ userId: user.id, label })),
     }),
@@ -166,7 +175,11 @@ export async function addTask(label: string) {
 }
 
 export async function deleteTask(id: string) {
-  await prisma.dailyTask.delete({ where: { id } });
+  const user = await getAppUser();
+  await prisma.dailyTask.updateMany({
+    where: { id, userId: user.id, deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
   revalidatePath("/home");
   revalidatePath("/profile");
 }
@@ -175,7 +188,9 @@ export async function addGoal(label: string) {
   const user = await getAppUser();
   const trimmed = label.trim();
   if (!trimmed) return { error: "Add a goal first." };
-  const count = await prisma.goal.count({ where: { userId: user.id } });
+  const count = await prisma.goal.count({
+    where: { userId: user.id, deletedAt: null },
+  });
   const goal = await prisma.goal.create({
     data: { userId: user.id, label: trimmed, order: count },
   });
@@ -184,7 +199,11 @@ export async function addGoal(label: string) {
 }
 
 export async function deleteGoal(id: string) {
-  await prisma.goal.delete({ where: { id } });
+  const user = await getAppUser();
+  await prisma.goal.updateMany({
+    where: { id, userId: user.id, deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
   revalidateApp();
 }
 
