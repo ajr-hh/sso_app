@@ -2,6 +2,7 @@ import type { StyleProp, TextStyle } from "react-native";
 import { StyleSheet, Text } from "react-native";
 
 export type MaterialSymbolName =
+  | "arrow_back"
   | "edit"
   | "edit_note"
   | "emergency"
@@ -11,6 +12,7 @@ export type MaterialSymbolName =
   | "person";
 
 const glyphs: Readonly<Record<MaterialSymbolName, string>> = {
+  arrow_back: "\u{E5C4}",
   edit: "\u{E3C9}",
   edit_note: "\u{E745}",
   emergency: "\u{E1EB}",

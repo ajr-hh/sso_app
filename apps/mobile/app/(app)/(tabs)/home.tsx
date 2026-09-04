@@ -111,7 +111,7 @@ export default function HomeScreen() {
       </View>
 
       <Section
-        onEdit={() => router.navigate("/(app)/(tabs)/profile")}
+        onEdit={() => router.navigate("/(app)/tasks")}
         title="My daily tasks"
       >
         {data.tasks.length === 0 ? (
@@ -156,11 +156,11 @@ export default function HomeScreen() {
       </Section>
 
       <Section
-        onEdit={() => router.navigate("/(app)/(tabs)/profile")}
+        onEdit={() => router.navigate("/(app)/goals")}
         title="My goals"
       >
         {data.goals.length === 0 ? (
-          <Text style={styles.body}>Add goals from your profile.</Text>
+          <Text style={styles.body}>Tap Edit to add goals.</Text>
         ) : (
           data.goals.map((goal) => (
             <View key={goal.id} style={styles.goalRow}>

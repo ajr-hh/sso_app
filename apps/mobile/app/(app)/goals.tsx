@@ -1,0 +1,295 @@
+import { useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+
+import { ErrorBanner } from "../../components/ErrorBanner";
+import { MaterialSymbol } from "../../components/MaterialSymbol";
+import { fetchGoals, replaceGoals, type Goal } from "../../src/data/goals";
+import { explainError } from "../../src/lib/errors";
+import { colors } from "../../src/theme/colors";
+
+export default function GoalsScreen() {
+  const router = useRouter();
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [goalLabels, setGoalLabels] = useState<string[]>([]);
+  const [newGoal, setNewGoal] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const nextGoals = await fetchGoals();
+      setGoals(nextGoals);
+      setGoalLabels(nextGoals.map((goal) => goal.label));
+    } catch (caughtError) {
+      setGoals([]);
+      setGoalLabels([]);
+      setError(explainError(caughtError));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.ember} size="large" />
+        <Text style={styles.body}>Loading your goals…</Text>
+      </View>
+    );
+  }
+
+  if (error && goalLabels.length === 0 && goals.length === 0) {
+    return (
+      <View style={styles.centered}>
+        <ErrorBanner message={error} />
+        <Button label="Try again" onPress={load} />
+      </View>
+    );
+  }
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={styles.flex}
+    >
+      <ScrollView
+        contentContainerStyle={styles.screen}
+        keyboardShouldPersistTaps="handled"
+      >
+        <BackControl onPress={() => router.back()} />
+        <View style={styles.heading}>
+          <Text style={styles.eyebrow}>YOUR SUPPORT PLAN</Text>
+          <Text accessibilityRole="header" style={styles.title}>
+            My goals
+          </Text>
+          <Text style={styles.body}>
+            Keep these visible so SOS can remind you what you are working toward.
+          </Text>
+        </View>
+
+        {error ? <ErrorBanner message={error} /> : null}
+        {saved ? (
+          <Text accessibilityLiveRegion="polite" style={styles.saved}>
+            Goals saved.
+          </Text>
+        ) : null}
+
+        <View style={styles.card}>
+          {goalLabels.map((label, index) => (
+            <View key={goals[index]?.id ?? `new-${index}`} style={styles.row}>
+              <TextInput
+                accessibilityLabel={`Goal ${index + 1}`}
+                editable={!busy}
+                onChangeText={(value) => {
+                  setGoalLabels((current) =>
+                    current.map((item, itemIndex) =>
+                      itemIndex === index ? value : item,
+                    ),
+                  );
+                  setSaved(false);
+                }}
+                placeholderTextColor={colors.body}
+                style={[styles.input, styles.rowInput]}
+                value={label}
+              />
+              <Pressable
+                accessibilityLabel={`Remove goal ${index + 1}`}
+                accessibilityRole="button"
+                disabled={busy}
+                hitSlop={8}
+                onPress={() => {
+                  setGoalLabels((current) =>
+                    current.filter((_, itemIndex) => itemIndex !== index),
+                  );
+                  setSaved(false);
+                }}
+              >
+                <Text style={styles.removeText}>Remove</Text>
+              </Pressable>
+            </View>
+          ))}
+          <AddRow
+            disabled={!newGoal.trim() || busy}
+            onAdd={() => {
+              const label = newGoal.trim();
+              if (!label) return;
+              setGoalLabels((current) => [...current, label]);
+              setNewGoal("");
+              setSaved(false);
+            }}
+            onChange={setNewGoal}
+            placeholder="Add a goal"
+            value={newGoal}
+          />
+        </View>
+
+        <Button
+          disabled={busy}
+          label={busy ? "Saving…" : "Save goals"}
+          onPress={async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              await replaceGoals(
+                goalLabels.map((label) => label.trim()).filter(Boolean),
+              );
+              const nextGoals = await fetchGoals();
+              setGoals(nextGoals);
+              setGoalLabels(nextGoals.map((goal) => goal.label));
+              setSaved(true);
+            } catch (caughtError) {
+              setError(explainError(caughtError));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+function BackControl({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityLabel="Go back"
+      accessibilityRole="button"
+      hitSlop={8}
+      onPress={onPress}
+      style={({ pressed }) => [styles.back, pressed && styles.pressed]}
+    >
+      <MaterialSymbol color={colors.ink} name="arrow_back" size={22} />
+      <Text style={styles.backText}>Back</Text>
+    </Pressable>
+  );
+}
+
+function AddRow({
+  disabled,
+  onAdd,
+  onChange,
+  placeholder,
+  value,
+}: {
+  disabled: boolean;
+  onAdd: () => void;
+  onChange: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.row}>
+      <TextInput
+        accessibilityLabel={placeholder}
+        onChangeText={onChange}
+        onSubmitEditing={onAdd}
+        placeholder={placeholder}
+        placeholderTextColor={colors.body}
+        style={[styles.input, styles.rowInput]}
+        value={value}
+      />
+      <Button disabled={disabled} label="Add" onPress={onAdd} />
+    </View>
+  );
+}
+
+function Button({
+  disabled = false,
+  label,
+  onPress,
+}: {
+  disabled?: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.button, disabled && styles.disabled]}
+    >
+      <Text style={styles.buttonText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { backgroundColor: colors.canvas, flex: 1 },
+  screen: {
+    backgroundColor: colors.canvas,
+    gap: 16,
+    padding: 24,
+    paddingBottom: 96,
+  },
+  centered: {
+    alignItems: "center",
+    backgroundColor: colors.canvas,
+    flex: 1,
+    gap: 16,
+    justifyContent: "center",
+    padding: 24,
+  },
+  back: { alignItems: "center", flexDirection: "row", gap: 4, minHeight: 40 },
+  backText: { color: colors.ink, fontSize: 16, fontWeight: "700" },
+  pressed: { opacity: 0.6 },
+  heading: { gap: 5 },
+  eyebrow: {
+    color: colors.ember,
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+  },
+  title: { color: colors.ink, fontSize: 36, fontWeight: "800" },
+  body: { color: colors.body, fontSize: 16, lineHeight: 22 },
+  saved: { color: "#27633E", fontSize: 15, fontWeight: "700" },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    gap: 14,
+    padding: 18,
+  },
+  row: { alignItems: "center", flexDirection: "row", gap: 9 },
+  rowInput: { flex: 1 },
+  input: {
+    backgroundColor: colors.canvas,
+    borderColor: "#D7D9D9",
+    borderRadius: 12,
+    borderWidth: 1,
+    color: colors.ink,
+    fontSize: 16,
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  removeText: { color: "#A43B2A", fontSize: 13, fontWeight: "700" },
+  button: {
+    alignItems: "center",
+    backgroundColor: colors.ember,
+    borderRadius: 12,
+    justifyContent: "center",
+    minHeight: 50,
+    paddingHorizontal: 16,
+  },
+  buttonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  disabled: { opacity: 0.45 },
+});

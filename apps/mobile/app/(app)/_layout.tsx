@@ -53,6 +53,8 @@ export default function AppLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="sos" />
         <Stack.Screen name="onboarding" />
+        <Stack.Screen name="goals" />
+        <Stack.Screen name="tasks" />
       </Stack>
     </SafeAreaView>
   );

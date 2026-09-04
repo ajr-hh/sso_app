@@ -68,6 +68,21 @@ export async function toggleTask(id: string, done: boolean): Promise<void> {
   }
 }
 
+
+export async function updateTask(id: string, label: string): Promise<void> {
+  const userId = await requireUserId();
+  const { error } = await getSupabase()
+    .from("daily_tasks")
+    .update({ label })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .eq("day", taskDayKey());
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function deleteTask(id: string): Promise<void> {
   const userId = await requireUserId();
   const { error } = await getSupabase()
