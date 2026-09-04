@@ -61,13 +61,13 @@ export default function OnboardingScreen() {
         {error ? <ErrorBanner message={error} /> : null}
 
         <View style={styles.card}>
-          <Text style={styles.label}>What should we call you?</Text>
+          <Text style={styles.label}>Tell us your name</Text>
           <TextInput
             autoCapitalize="words"
             autoFocus
             editable={!saving}
             onChangeText={setDisplayName}
-            placeholder="First name"
+            placeholder="First Last"
             placeholderTextColor={colors.body}
             style={styles.input}
             value={displayName}
