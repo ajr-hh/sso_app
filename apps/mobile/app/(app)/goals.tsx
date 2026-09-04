@@ -12,8 +12,8 @@ import {
   View,
 } from "react-native";
 
+import { BackControl } from "../../components/BackControl";
 import { ErrorBanner } from "../../components/ErrorBanner";
-import { MaterialSymbol } from "../../components/MaterialSymbol";
 import { fetchGoals, replaceGoals, type Goal } from "../../src/data/goals";
 import { explainError } from "../../src/lib/errors";
 import { colors } from "../../src/theme/colors";
@@ -168,21 +168,6 @@ export default function GoalsScreen() {
   );
 }
 
-function BackControl({ onPress }: { onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityLabel="Go back"
-      accessibilityRole="button"
-      hitSlop={8}
-      onPress={onPress}
-      style={({ pressed }) => [styles.back, pressed && styles.pressed]}
-    >
-      <MaterialSymbol color={colors.ink} name="arrow_back" size={22} />
-      <Text style={styles.backText}>Back</Text>
-    </Pressable>
-  );
-}
-
 function AddRow({
   disabled,
   onAdd,
@@ -249,9 +234,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 24,
   },
-  back: { alignItems: "center", flexDirection: "row", gap: 4, minHeight: 40 },
-  backText: { color: colors.ink, fontSize: 16, fontWeight: "700" },
-  pressed: { opacity: 0.6 },
   heading: { gap: 5 },
   eyebrow: {
     color: colors.ember,

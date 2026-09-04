@@ -68,7 +68,6 @@ export async function toggleTask(id: string, done: boolean): Promise<void> {
   }
 }
 
-
 export async function updateTask(id: string, label: string): Promise<void> {
   const userId = await requireUserId();
   const { error } = await getSupabase()
