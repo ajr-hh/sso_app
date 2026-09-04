@@ -1,11 +1,18 @@
+import { MaterialSymbolsOutlined_400Regular } from "@expo-google-fonts/material-symbols-outlined/400Regular";
+import { useFonts } from "@expo-google-fonts/material-symbols-outlined/useFonts";
 import type { Session } from "@supabase/supabase-js";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { useEffect, useState } from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { explainError } from "../src/lib/errors";
 import { getSession, onAuthChange } from "../src/lib/session";
+import { colors } from "../src/theme/colors";
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    MaterialSymbolsOutlined: MaterialSymbolsOutlined_400Regular,
+  });
   const router = useRouter();
   const segments = useSegments();
   const [session, setSession] = useState<Session | null | undefined>();
@@ -71,5 +78,24 @@ export default function RootLayout() {
     }
   }, [router, segments, session]);
 
+  if (!fontsLoaded && !fontError) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color={colors.ember} size="large" />
+      </View>
+    );
+  }
+
   return <Slot />;
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    alignItems: "center",
+    backgroundColor: colors.canvas,
+    flex: 1,
+    gap: 8,
+    justifyContent: "center",
+    padding: 24,
+  },
+});

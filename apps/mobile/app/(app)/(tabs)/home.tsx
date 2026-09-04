@@ -10,6 +10,7 @@ import {
 } from "react-native";
 
 import { ErrorBanner } from "../../../components/ErrorBanner";
+import { MaterialSymbol } from "../../../components/MaterialSymbol";
 import { fetchGoals, type Goal } from "../../../src/data/goals";
 import { fetchJournal, type JournalEntry } from "../../../src/data/journal";
 import { fetchProfile } from "../../../src/data/profile";
@@ -109,7 +110,10 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <Section title="Today’s tasks">
+      <Section
+        onEdit={() => router.navigate("/(app)/(tabs)/profile")}
+        title="My daily tasks"
+      >
         {data.tasks.length === 0 ? (
           <Text style={styles.body}>No tasks planned for today.</Text>
         ) : (
@@ -151,40 +155,76 @@ export default function HomeScreen() {
         )}
       </Section>
 
-      <Section title="Your goals">
+      <Section
+        onEdit={() => router.navigate("/(app)/(tabs)/profile")}
+        title="My goals"
+      >
         {data.goals.length === 0 ? (
           <Text style={styles.body}>Add goals from your profile.</Text>
         ) : (
           data.goals.map((goal) => (
             <View key={goal.id} style={styles.goalRow}>
-              <Text style={styles.goalBullet}>•</Text>
+              <View style={styles.goalIcon}>
+                <MaterialSymbol color="#FFFFFF" name="flag" size={16} />
+              </View>
               <Text style={styles.goalLabel}>{goal.label}</Text>
             </View>
           ))
         )}
       </Section>
 
-      <View style={styles.sosCard}>
-        <Text style={styles.sosTitle}>Need support right now?</Text>
-        <Text style={styles.body}>
-          Use SOS for a quick reset before the next choice.
+      <Pressable
+        accessibilityHint="Opens immediate support options"
+        accessibilityLabel="Open SOS support"
+        accessibilityRole="button"
+        onPress={() => router.push("/(app)/sos")}
+        style={({ pressed }) => [
+          styles.sosCard,
+          pressed && styles.sosCardPressed,
+        ]}
+      >
+        <Text style={styles.sosTitle}>
+          Feeling shaky, or something coming up?
         </Text>
-        <Button label="Open SOS" onPress={() => router.push("/(app)/sos")} />
-      </View>
+        <Text style={styles.body}>
+          Tap the SOS button below — day or night.
+        </Text>
+      </Pressable>
     </ScrollView>
   );
 }
 
 function Section({
   children,
+  onEdit,
   title,
 }: {
   children: React.ReactNode;
+  onEdit?: () => void;
   title: string;
 }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionHeader}>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>
+          {title}
+        </Text>
+        {onEdit ? (
+          <Pressable
+            accessibilityLabel={`Edit ${title}`}
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={onEdit}
+            style={({ pressed }) => [
+              styles.editButton,
+              pressed && styles.editButtonPressed,
+            ]}
+          >
+            <MaterialSymbol color={colors.ink} name="edit" size={18} />
+            <Text style={styles.editText}>Edit</Text>
+          </Pressable>
+        ) : null}
+      </View>
       {children}
     </View>
   );
@@ -221,17 +261,22 @@ const styles = StyleSheet.create({
   streakTitle: { color: "#FFFFFF", fontSize: 20, fontWeight: "800" },
   streakBody: { color: "#D8DCDC", fontSize: 15, lineHeight: 20 },
   section: { backgroundColor: "#FFFFFF", borderRadius: 16, gap: 14, padding: 18 },
+  sectionHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
   sectionTitle: { color: colors.ink, fontSize: 21, fontWeight: "800" },
+  editButton: { alignItems: "center", flexDirection: "row", gap: 4, minHeight: 32, paddingHorizontal: 4 },
+  editButtonPressed: { opacity: 0.6 },
+  editText: { color: colors.ink, fontSize: 14, fontWeight: "800" },
   taskRow: { alignItems: "center", flexDirection: "row", gap: 11, minHeight: 40 },
   checkbox: { alignItems: "center", borderColor: "#9EA5A5", borderRadius: 6, borderWidth: 2, height: 25, justifyContent: "center", width: 25 },
   checkboxDone: { backgroundColor: colors.ember, borderColor: colors.ember },
   checkmark: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
   taskLabel: { color: colors.ink, flex: 1, fontSize: 16 },
   taskDone: { color: colors.body, textDecorationLine: "line-through" },
-  goalRow: { alignItems: "flex-start", flexDirection: "row", gap: 10 },
-  goalBullet: { color: colors.ember, fontSize: 22, lineHeight: 22 },
+  goalRow: { alignItems: "center", flexDirection: "row", gap: 10 },
+  goalIcon: { alignItems: "center", backgroundColor: colors.ember, borderRadius: 8, height: 28, justifyContent: "center", width: 28 },
   goalLabel: { color: colors.ink, flex: 1, fontSize: 16, lineHeight: 22 },
   sosCard: { backgroundColor: colors.emberTint, borderRadius: 16, gap: 12, padding: 18 },
+  sosCardPressed: { opacity: 0.75 },
   sosTitle: { color: colors.ink, fontSize: 23, fontWeight: "800" },
   button: { alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.ember, borderRadius: 12, justifyContent: "center", minHeight: 48, paddingHorizontal: 20 },
   buttonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },

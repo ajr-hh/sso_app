@@ -5,12 +5,33 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   display_name text,
   age integer,
-  contact_info text,
+  phone text,
   why_matters text,
   motivators text not null default 'Remember why',
   coach_style text not null default 'marcus',
   created_at timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists phone text;
+
+-- Preserve phone values entered through the earlier combined contact field.
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'profiles'
+      and column_name = 'contact_info'
+  ) then
+    execute '
+      update public.profiles
+      set phone = nullif(trim(contact_info), '''')
+      where phone is null and nullif(trim(contact_info), '''') is not null
+    ';
+  end if;
+end;
+$$;
 
 create or replace view public.community_profiles
 with (security_barrier = true)

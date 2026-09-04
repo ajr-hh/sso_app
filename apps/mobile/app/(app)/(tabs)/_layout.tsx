@@ -1,19 +1,46 @@
 import { Tabs, useRouter } from "expo-router";
-import { Fragment } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Fragment, useEffect, useState } from "react";
+import {
+  Keyboard,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { MaterialSymbol } from "../../../components/MaterialSymbol";
 import { SOS_PATH, TAB_SCREENS } from "../../../src/navigation/tabs";
 import { colors } from "../../../src/theme/colors";
 
 export default function TabsLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const show = Keyboard.addListener(showEvent, () => {
+      setKeyboardVisible(true);
+    });
+    const hide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   return (
     <Tabs
       screenOptions={{ headerShown: false }}
-      tabBar={({ state }) => (
+      tabBar={({ state }) => keyboardVisible ? null : (
         <View
           style={[
             styles.tabBar,
@@ -34,9 +61,11 @@ export default function TabsLayout() {
                   }
                   style={styles.tab}
                 >
-                  <Text style={[styles.symbol, active && styles.active]}>
-                    {screen.symbol}
-                  </Text>
+                  <MaterialSymbol
+                    color={active ? colors.ember : colors.body}
+                    name={screen.symbol}
+                    size={24}
+                  />
                   <Text style={[styles.label, active && styles.active]}>
                     {screen.label}
                   </Text>
@@ -53,7 +82,10 @@ export default function TabsLayout() {
             onPress={() => router.push(SOS_PATH)}
             style={styles.sosButton}
           >
-            <Text style={styles.sosText}>SOS</Text>
+            <MaterialSymbol color="#FFFFFF" name="emergency" size={24} />
+            <Text maxFontSizeMultiplier={1.4} style={styles.sosText}>
+              SOS
+            </Text>
           </Pressable>
         </View>
       )}
@@ -88,11 +120,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: 48,
   },
-  symbol: {
-    color: colors.body,
-    fontSize: 20,
-    fontWeight: "800",
-  },
   label: {
     color: colors.body,
     fontSize: 11,
@@ -110,6 +137,7 @@ const styles = StyleSheet.create({
     borderColor: "#FFFFFF",
     borderRadius: 38,
     borderWidth: 5,
+    gap: 1,
     height: 76,
     justifyContent: "center",
     left: "50%",
