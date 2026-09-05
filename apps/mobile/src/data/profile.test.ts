@@ -40,6 +40,7 @@ describe("profile data", () => {
     await expect(fetchProfile()).resolves.toMatchObject({
       email: "alex@example.test",
       id: "user-1",
+      motivators: "Family",
       rail_order: ["stats", "why"],
     });
     expect(select).toHaveBeenCalledWith(

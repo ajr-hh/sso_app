@@ -21,6 +21,7 @@ export type MaterialSymbolName =
   | "home"
   | "nutrition"
   | "person"
+  | "person_add"
   | "redeem"
   | "reminder"
   | "sentiment_dissatisfied"
@@ -47,6 +48,7 @@ const glyphs: Readonly<Record<MaterialSymbolName, string>> = {
   home: "\u{E88A}",
   nutrition: "\u{E110}",
   person: "\u{E7FD}",
+  person_add: "\u{EA4D}",
   redeem: "\u{E8F6}",
   reminder: "\u{E6C6}",
   sentiment_dissatisfied: "\u{E811}",
