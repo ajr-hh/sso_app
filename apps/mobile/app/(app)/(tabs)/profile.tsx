@@ -45,6 +45,8 @@ export default function ProfileScreen() {
   const [saved, setSaved] = useState(false);
   const [peopleModalVisible, setPeopleModalVisible] = useState(false);
   const contactsRequestRef = useRef(0);
+  const contactsMutationRevisionRef = useRef(0);
+  const contactsMutationsInFlightRef = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,19 +63,24 @@ export default function ProfileScreen() {
 
   const loadContacts = useCallback(async () => {
     const requestId = ++contactsRequestRef.current;
+    const mutationRevision = contactsMutationRevisionRef.current;
+    const canApply = () =>
+      contactsRequestRef.current === requestId &&
+      contactsMutationRevisionRef.current === mutationRevision &&
+      contactsMutationsInFlightRef.current === 0;
     setContactsLoading(true);
     setContactsError(null);
     try {
       const loadedContacts = await fetchAccountabilityContacts();
-      if (contactsRequestRef.current === requestId) {
+      if (canApply()) {
         setContacts(loadedContacts);
       }
     } catch {
-      if (contactsRequestRef.current === requestId) {
+      if (canApply()) {
         setContactsError("We couldn’t load your people. Try again.");
       }
     } finally {
-      if (contactsRequestRef.current === requestId) {
+      if (canApply()) {
         setContactsLoading(false);
       }
     }
@@ -84,12 +91,27 @@ export default function ProfileScreen() {
     void loadContacts();
   }, [load, loadContacts]);
 
-  const createContact = async (
-    input: CreateAccountabilityContactInput,
-  ): Promise<AccountabilityContact> => {
+  const beginContactMutation = () => {
+    contactsMutationsInFlightRef.current += 1;
+    contactsMutationRevisionRef.current += 1;
     contactsRequestRef.current += 1;
     setContactsLoading(false);
     setContactsStatus(null);
+  };
+
+  const finishContactMutation = () => {
+    contactsMutationsInFlightRef.current = Math.max(
+      0,
+      contactsMutationsInFlightRef.current - 1,
+    );
+    contactsMutationRevisionRef.current += 1;
+    setContactsLoading(false);
+  };
+
+  const createContact = async (
+    input: CreateAccountabilityContactInput,
+  ): Promise<AccountabilityContact> => {
+    beginContactMutation();
     try {
       const created = await createAccountabilityContact(input);
       setContacts((current) => [...current, created]);
@@ -97,15 +119,15 @@ export default function ProfileScreen() {
       return created;
     } catch {
       throw new Error(`We couldn’t add ${input.name}. Try again.`);
+    } finally {
+      finishContactMutation();
     }
   };
 
   const removeContact = async (
     contact: AccountabilityContact,
   ): Promise<void> => {
-    contactsRequestRef.current += 1;
-    setContactsLoading(false);
-    setContactsStatus(null);
+    beginContactMutation();
     try {
       await removeAccountabilityContact(contact.id);
       setContacts((current) =>
@@ -114,6 +136,8 @@ export default function ProfileScreen() {
       setContactsStatus(`${contact.name} removed.`);
     } catch {
       throw new Error(`We couldn’t remove ${contact.name}. Try again.`);
+    } finally {
+      finishContactMutation();
     }
   };
 

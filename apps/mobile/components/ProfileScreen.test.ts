@@ -192,6 +192,62 @@ describe("ProfileScreen contact orchestration", () => {
     expect(peopleProps(renderer).contacts).toEqual([]);
   });
 
+  test("ignores a stale retry started during a pending create", async () => {
+    const pendingCreate = deferred<AccountabilityContact>();
+    const staleRetry = deferred<AccountabilityContact[]>();
+    mockedCreateContact.mockReturnValue(pendingCreate.promise);
+    mockedFetchContacts
+      .mockResolvedValueOnce([])
+      .mockReturnValueOnce(staleRetry.promise);
+    const renderer = await renderScreen();
+
+    let createPromise!: Promise<AccountabilityContact>;
+    act(() => {
+      createPromise = peopleProps(renderer).onCreate(input);
+      peopleProps(renderer).onRetry();
+    });
+
+    await act(async () => {
+      pendingCreate.resolve(contact);
+      await createPromise;
+    });
+    expect(peopleProps(renderer).contacts).toEqual([contact]);
+
+    await act(async () => {
+      staleRetry.resolve([]);
+      await staleRetry.promise;
+    });
+    expect(peopleProps(renderer).contacts).toEqual([contact]);
+  });
+
+  test("ignores a stale retry started during a pending remove", async () => {
+    const pendingRemove = deferred<void>();
+    const staleRetry = deferred<AccountabilityContact[]>();
+    mockedRemoveContact.mockReturnValue(pendingRemove.promise);
+    mockedFetchContacts
+      .mockResolvedValueOnce([contact])
+      .mockReturnValueOnce(staleRetry.promise);
+    const renderer = await renderScreen();
+
+    let removePromise!: Promise<void>;
+    act(() => {
+      removePromise = peopleProps(renderer).onRemove(contact);
+      peopleProps(renderer).onRetry();
+    });
+
+    await act(async () => {
+      pendingRemove.resolve();
+      await removePromise;
+    });
+    expect(peopleProps(renderer).contacts).toEqual([]);
+
+    await act(async () => {
+      staleRetry.resolve([contact]);
+      await staleRetry.promise;
+    });
+    expect(peopleProps(renderer).contacts).toEqual([]);
+  });
+
   test("blocks saving a legacy motivator with an actionable error", async () => {
     mockedFetchProfile.mockResolvedValue({
       ...profile,
