@@ -1,7 +1,9 @@
 import {
+  CONTACT_FIELD_LIMITS,
   getAccountabilityContactValidationError,
   normalizeAccountabilityContact,
   RELATIONSHIP_OPTIONS,
+  shouldAnnounceContactStatus,
 } from "./accountabilityContacts";
 
 const valid = {
@@ -53,5 +55,15 @@ describe("accountability contact rules", () => {
       email: "jamie@example.com",
       relationship: "friend",
     });
+  });
+
+  test("matches the stored column limits", () => {
+    expect(CONTACT_FIELD_LIMITS).toEqual({ name: 120, phone: 40, email: 320 });
+  });
+
+  test("announces contact status only where no live region does", () => {
+    expect(shouldAnnounceContactStatus("ios")).toBe(true);
+    expect(shouldAnnounceContactStatus("android")).toBe(false);
+    expect(shouldAnnounceContactStatus("web")).toBe(false);
   });
 });

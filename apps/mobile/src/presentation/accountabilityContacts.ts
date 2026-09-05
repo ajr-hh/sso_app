@@ -12,6 +12,12 @@ export const RELATIONSHIP_OPTIONS = [
 export type RelationshipValue =
   (typeof RELATIONSHIP_OPTIONS)[number]["value"];
 
+export const CONTACT_FIELD_LIMITS = {
+  name: 120,
+  phone: 40,
+  email: 320,
+} as const;
+
 export type AccountabilityContactInput = {
   name: string;
   phone: string;
@@ -45,4 +51,8 @@ export function getAccountabilityContactValidationError(
   }
   if (value.relationship === null) return "Choose their relationship.";
   return null;
+}
+
+export function shouldAnnounceContactStatus(platform: string): boolean {
+  return platform === "ios";
 }

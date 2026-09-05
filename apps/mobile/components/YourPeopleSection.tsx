@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
@@ -19,9 +20,11 @@ import type {
 } from "../src/data/accountabilityContacts";
 import { explainError } from "../src/lib/errors";
 import {
+  CONTACT_FIELD_LIMITS,
   getAccountabilityContactValidationError,
   normalizeAccountabilityContact,
   RELATIONSHIP_OPTIONS,
+  shouldAnnounceContactStatus,
   type AccountabilityContactInput,
 } from "../src/presentation/accountabilityContacts";
 import { colors } from "../src/theme/colors";
@@ -71,8 +74,15 @@ export function YourPeopleSection({
   const removingIdsRef = useRef<ReadonlySet<string>>(new Set());
   const nameRef = useRef<TextInput>(null);
 
+  useEffect(() => {
+    if (status && shouldAnnounceContactStatus(Platform.OS)) {
+      AccessibilityInfo.announceForAccessibility(status);
+    }
+  }, [status]);
+
   const closeModal = () => {
     if (!savingRef.current) {
+      setForm(EMPTY_FORM);
       setFormError(null);
       onModalVisibleChange(false);
     }
@@ -105,6 +115,7 @@ export function YourPeopleSection({
         relationship: normalized.relationship,
       });
       setForm(EMPTY_FORM);
+      setTileError(null);
       onModalVisibleChange(false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : explainError(error));
@@ -173,7 +184,12 @@ export function YourPeopleSection({
       ) : null}
       {tileError ? <ErrorBanner message={tileError} /> : null}
       {status ? (
-        <Text accessibilityLiveRegion="polite" style={styles.status}>
+        <Text
+          accessibilityLiveRegion={
+            Platform.OS === "android" ? "polite" : undefined
+          }
+          style={styles.status}
+        >
           {status}
         </Text>
       ) : null}
@@ -219,6 +235,7 @@ export function YourPeopleSection({
         accessibilityRole="button"
         onPress={() => {
           setFormError(null);
+          setTileError(null);
           onModalVisibleChange(true);
         }}
         style={styles.addButton}
@@ -270,6 +287,7 @@ export function YourPeopleSection({
                     autoCapitalize="words"
                     autoComplete="name"
                     editable={!saving}
+                    maxLength={CONTACT_FIELD_LIMITS.name}
                     onChangeText={(name) =>
                       setForm((current) => ({ ...current, name }))
                     }
@@ -285,6 +303,7 @@ export function YourPeopleSection({
                     autoComplete="tel"
                     editable={!saving}
                     inputMode="tel"
+                    maxLength={CONTACT_FIELD_LIMITS.phone}
                     onChangeText={(phone) =>
                       setForm((current) => ({ ...current, phone }))
                     }
@@ -301,6 +320,7 @@ export function YourPeopleSection({
                     autoCorrect={false}
                     editable={!saving}
                     inputMode="email"
+                    maxLength={CONTACT_FIELD_LIMITS.email}
                     onChangeText={(email) =>
                       setForm((current) => ({ ...current, email }))
                     }

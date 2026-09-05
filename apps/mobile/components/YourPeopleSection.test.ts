@@ -30,7 +30,10 @@ jest.mock("react-native", () => {
 });
 
 import type { AccountabilityContact } from "../src/data/accountabilityContacts";
-import { RELATIONSHIP_OPTIONS } from "../src/presentation/accountabilityContacts";
+import {
+  CONTACT_FIELD_LIMITS,
+  RELATIONSHIP_OPTIONS,
+} from "../src/presentation/accountabilityContacts";
 import {
   YourPeopleSection,
   type YourPeopleSectionProps,
@@ -181,6 +184,99 @@ describe("YourPeopleSection", () => {
           .accessibilityHint,
       ).toBe("Required");
     }
+  });
+
+  test("caps every text field at its stored column length", async () => {
+    const renderer = await render({ modalVisible: true });
+
+    for (const [label, maxLength] of [
+      ["Name", CONTACT_FIELD_LIMITS.name],
+      ["Phone number", CONTACT_FIELD_LIMITS.phone],
+      ["Email", CONTACT_FIELD_LIMITS.email],
+    ] as const) {
+      expect(
+        renderer.root.findByProps({ accessibilityLabel: label }).props.maxLength,
+      ).toBe(maxLength);
+    }
+  });
+
+  test("clears an abandoned form on cancel but keeps invalid input to correct", async () => {
+    const onModalVisibleChange = jest.fn();
+    const controlledProps = createProps({
+      modalVisible: true,
+      onModalVisibleChange,
+    });
+    const renderer = await render(controlledProps);
+    await changeText(renderer, "Name", "Jamie Rivera");
+
+    await act(async () => {
+      pressableByText(renderer, "Save loved one").props.onPress();
+    });
+    expect(JSON.stringify(renderer.toJSON())).toContain(
+      "Enter their phone number.",
+    );
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: "Name" }).props.value,
+    ).toBe("Jamie Rivera");
+
+    await act(async () => {
+      pressableByText(renderer, "Cancel").props.onPress();
+    });
+    expect(onModalVisibleChange).toHaveBeenLastCalledWith(false);
+
+    for (const modalVisible of [false, true]) {
+      await act(async () => {
+        renderer.update(
+          React.createElement(YourPeopleSection, {
+            ...controlledProps,
+            modalVisible,
+          }),
+        );
+      });
+    }
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: "Name" }).props.value,
+    ).toBe("");
+    expect(JSON.stringify(renderer.toJSON())).not.toContain(
+      "Enter their phone number.",
+    );
+  });
+
+  test("clears the removal error after a successful add and on a fresh add flow", async () => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation();
+    const onRemove = jest.fn(async () => {
+      throw new Error("Removal failed.");
+    });
+    const renderer = await render({ modalVisible: true, onRemove });
+    const failRemoval = async () => {
+      act(() => {
+        renderer.root
+          .findByProps({ accessibilityLabel: `Remove ${contact.name}` })
+          .props.onPress();
+      });
+      await act(async () => {
+        alert.mock.calls.at(-1)?.[2]?.[1].onPress?.();
+      });
+      expect(JSON.stringify(renderer.toJSON())).toContain("Removal failed.");
+    };
+
+    await failRemoval();
+    await fillValidForm(renderer);
+    await act(async () => {
+      pressableByText(renderer, "Save loved one").props.onPress();
+    });
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("Removal failed.");
+
+    await failRemoval();
+    act(() => {
+      renderer.root
+        .findByProps({
+          accessibilityLabel: "Add a loved one to Your people",
+        })
+        .props.onPress();
+    });
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("Removal failed.");
+    alert.mockRestore();
   });
 
   test("validates before create and exposes the error as an alert", async () => {

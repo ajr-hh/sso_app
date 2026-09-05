@@ -275,7 +275,7 @@ describe("ProfileScreen contact orchestration", () => {
       peopleProps(renderer).onCreate({ ...input, name: second.name }),
     );
     expect(createError.message).toBe(
-      "We couldn’t add Morgan Rivera. Try again.",
+      "We couldn’t add Morgan Rivera. Error: schema cache miss",
     );
     expect(peopleProps(renderer).contacts).toEqual([contact]);
 
@@ -290,7 +290,7 @@ describe("ProfileScreen contact orchestration", () => {
       peopleProps(renderer).onRemove(contact),
     );
     expect(removeError.message).toBe(
-      "We couldn’t remove Jamie Rivera. Try again.",
+      "We couldn’t remove Jamie Rivera. Error: permission denied",
     );
     expect(peopleProps(renderer).contacts).toEqual([contact, second]);
 
@@ -315,11 +315,74 @@ describe("ProfileScreen contact orchestration", () => {
       peopleProps(renderer).onCreate(input),
     );
     expect(createError.message).toBe(
-      "We couldn’t add Jamie Rivera. Try again.",
+      "We couldn’t add Jamie Rivera. Error: raw insert failure",
     );
     expect(peopleProps(renderer).loadError).toBe(
       "We couldn’t load your people. Try again.",
     );
+  });
+
+  test("explains network and server mutation failures and keeps the cause", async () => {
+    mockedFetchContacts.mockResolvedValue([contact]);
+    const renderer = await renderScreen();
+
+    const offline = new TypeError("Network request failed");
+    mockedCreateContact.mockRejectedValueOnce(offline);
+    const createError = await captureRejection(() =>
+      peopleProps(renderer).onCreate(input),
+    );
+    expect(createError.message).toBe(
+      "We couldn’t add Jamie Rivera. Couldn't reach the server. Check your connection.",
+    );
+    expect(createError.cause).toBe(offline);
+
+    const denied = new Error("permission denied for table");
+    mockedRemoveContact.mockRejectedValueOnce(denied);
+    const removeError = await captureRejection(() =>
+      peopleProps(renderer).onRemove(contact),
+    );
+    expect(removeError.message).toBe(
+      "We couldn’t remove Jamie Rivera. Error: permission denied for table",
+    );
+    expect(removeError.cause).toBe(denied);
+    expect(peopleProps(renderer).loadError).toBeNull();
+    expect(peopleProps(renderer).contacts).toEqual([contact]);
+  });
+
+  test("keeps the load error until an applicable load succeeds", async () => {
+    mockedFetchContacts.mockRejectedValueOnce(
+      new Error("relation accountability_contacts does not exist"),
+    );
+    const renderer = await renderScreen();
+    expect(peopleProps(renderer).loadError).toBe(
+      "We couldn’t load your people. Try again.",
+    );
+
+    const invalidatedRetry = deferred<AccountabilityContact[]>();
+    mockedFetchContacts.mockReturnValueOnce(invalidatedRetry.promise);
+    let createPromise!: Promise<AccountabilityContact>;
+    act(() => {
+      peopleProps(renderer).onRetry();
+      createPromise = peopleProps(renderer).onCreate(input);
+    });
+    await act(async () => {
+      await createPromise;
+    });
+    await act(async () => {
+      invalidatedRetry.resolve([]);
+      await invalidatedRetry.promise;
+    });
+    expect(peopleProps(renderer).contacts).toEqual([contact]);
+    expect(peopleProps(renderer).loadError).toBe(
+      "We couldn’t load your people. Try again.",
+    );
+
+    mockedFetchContacts.mockResolvedValueOnce([contact]);
+    await act(async () => {
+      peopleProps(renderer).onRetry();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(peopleProps(renderer).loadError).toBeNull();
   });
 
   test("clears stale status at mutation start and identifies every success", async () => {

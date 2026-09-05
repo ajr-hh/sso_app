@@ -1,9 +1,19 @@
+// This project types only Jest globals, so the CommonJS test scope needs a
+// local declaration for the directory Jest resolves the migration against.
+declare const __dirname: string;
+
 const { readFileSync } = jest.requireActual("fs") as {
   readFileSync: (path: string, encoding: "utf8") => string;
 };
+const { join } = jest.requireActual("path") as {
+  join: (...segments: string[]) => string;
+};
 
 const migration = readFileSync(
-  "../../supabase/migrations/20260904183000_accountability_contacts.sql",
+  join(
+    __dirname,
+    "../../../../supabase/migrations/20260904183000_accountability_contacts.sql",
+  ),
   "utf8",
 );
 const normalizedMigration = migration.replace(/\s+/g, " ");
@@ -11,7 +21,7 @@ const normalizedMigration = migration.replace(/\s+/g, " ");
 describe("accountability contacts migration", () => {
   test("is rerunnable and replaces every RLS policy", () => {
     for (const policy of [
-      "Members select their active accountability contacts",
+      "Members select their accountability contacts",
       "Members insert their active accountability contacts",
       "Members soft-delete their accountability contacts",
     ]) {
@@ -20,6 +30,28 @@ describe("accountability contacts migration", () => {
       );
       expect(migration).toContain(`create policy "${policy}"`);
     }
+  });
+
+  test("lets owners select their soft-deleted rows so removal can return ids", () => {
+    expect(normalizedMigration).toContain(
+      'create policy "Members select their accountability contacts" ' +
+        "on public.accountability_contacts for select to authenticated " +
+        "using ((select auth.uid()) = user_id);",
+    );
+    expect(normalizedMigration).toContain(
+      'drop policy if exists "Members select their active accountability contacts" ' +
+        "on public.accountability_contacts;",
+    );
+  });
+
+  test("defaults new profiles to a supported motivation without rewriting rows", () => {
+    expect(normalizedMigration).toContain(
+      "alter table public.profiles " +
+        "alter column motivators set default 'Remember Your Why';",
+    );
+    expect(normalizedMigration.toLowerCase()).not.toContain(
+      "update public.profiles",
+    );
   });
 
   test("enforces contact and soft-delete invariants", () => {

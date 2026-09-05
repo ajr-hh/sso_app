@@ -40,9 +40,12 @@ alter table public.accountability_contacts enable row level security;
 
 drop policy if exists "Members select their active accountability contacts"
 on public.accountability_contacts;
-create policy "Members select their active accountability contacts"
+drop policy if exists "Members select their accountability contacts"
+on public.accountability_contacts;
+-- Owners must see soft-deleted rows so removal can return the updated id.
+create policy "Members select their accountability contacts"
 on public.accountability_contacts for select to authenticated
-using ((select auth.uid()) = user_id and deleted = false);
+using ((select auth.uid()) = user_id);
 
 drop policy if exists "Members insert their active accountability contacts"
 on public.accountability_contacts;
@@ -64,3 +67,6 @@ grant insert (user_id, name, phone, email, relationship)
 on table public.accountability_contacts to authenticated;
 grant update (deleted, deleted_at)
 on table public.accountability_contacts to authenticated;
+
+alter table public.profiles
+alter column motivators set default 'Remember Your Why';

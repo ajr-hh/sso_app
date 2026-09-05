@@ -69,11 +69,13 @@ export default function ProfileScreen() {
       contactsMutationRevisionRef.current === mutationRevision &&
       contactsMutationsInFlightRef.current === 0;
     setContactsLoading(true);
-    setContactsError(null);
+    // A load that can no longer apply leaves the previous error in place so the
+    // retry affordance survives an overlapping mutation.
     try {
       const loadedContacts = await fetchAccountabilityContacts();
       if (canApply()) {
         setContacts(loadedContacts);
+        setContactsError(null);
       }
     } catch {
       if (canApply()) {
@@ -94,7 +96,6 @@ export default function ProfileScreen() {
   const beginContactMutation = () => {
     contactsMutationsInFlightRef.current += 1;
     contactsMutationRevisionRef.current += 1;
-    contactsRequestRef.current += 1;
     setContactsLoading(false);
     setContactsStatus(null);
   };
@@ -117,8 +118,11 @@ export default function ProfileScreen() {
       setContacts((current) => [...current, created]);
       setContactsStatus(`${created.name} added.`);
       return created;
-    } catch {
-      throw new Error(`We couldn’t add ${input.name}. Try again.`);
+    } catch (caughtError) {
+      throw new Error(
+        `We couldn’t add ${input.name}. ${explainError(caughtError)}`,
+        { cause: caughtError },
+      );
     } finally {
       finishContactMutation();
     }
@@ -134,8 +138,11 @@ export default function ProfileScreen() {
         current.filter(({ id }) => id !== contact.id),
       );
       setContactsStatus(`${contact.name} removed.`);
-    } catch {
-      throw new Error(`We couldn’t remove ${contact.name}. Try again.`);
+    } catch (caughtError) {
+      throw new Error(
+        `We couldn’t remove ${contact.name}. ${explainError(caughtError)}`,
+        { cause: caughtError },
+      );
     } finally {
       finishContactMutation();
     }
