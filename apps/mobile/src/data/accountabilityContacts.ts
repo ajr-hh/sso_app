@@ -74,14 +74,22 @@ export async function createAccountabilityContact(
 
 export async function removeAccountabilityContact(id: string): Promise<void> {
   const userId = await requireUserId();
-  const { error } = await getSupabase()
+  const { data, error } = await getSupabase()
     .from("accountability_contacts")
     .update({ deleted: true, deleted_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", userId)
-    .eq("deleted", false);
+    .eq("deleted", false)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error(
+      "Accountability contact was not found or is no longer active.",
+    );
   }
 }

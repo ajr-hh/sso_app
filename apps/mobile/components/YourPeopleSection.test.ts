@@ -166,6 +166,23 @@ describe("YourPeopleSection", () => {
     expect(renderedText).toContain("Save loved one");
   });
 
+  test("marks every flyout field visibly and accessibly required", async () => {
+    const renderer = await render({ modalVisible: true });
+    const visibleLabels = renderer.root
+      .findAllByType(Text)
+      .map(({ props }) =>
+        Array.isArray(props.children) ? props.children.join("") : props.children,
+      );
+
+    for (const label of ["Name", "Phone number", "Email", "Relationship"]) {
+      expect(visibleLabels).toContain(`${label} *`);
+      expect(
+        renderer.root.findByProps({ accessibilityLabel: label }).props
+          .accessibilityHint,
+      ).toBe("Required");
+    }
+  });
+
   test("validates before create and exposes the error as an alert", async () => {
     const onCreate = jest.fn(async () => contact);
     const renderer = await render({ modalVisible: true, onCreate });
@@ -406,6 +423,14 @@ describe("YourPeopleSection", () => {
       await second.promise.catch(() => undefined);
     });
     expect(JSON.stringify(renderer.toJSON())).toContain("Removal failed.");
+    expect(
+      renderer.root.findAllByProps({ accessibilityRole: "button" }).filter(
+        (candidate) =>
+          candidate
+            .findAllByType(Text)
+            .some((node) => node.props.children === "Try again"),
+      ),
+    ).toHaveLength(0);
     alert.mockRestore();
   });
 });

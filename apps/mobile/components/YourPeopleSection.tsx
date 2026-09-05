@@ -107,7 +107,7 @@ export function YourPeopleSection({
       setForm(EMPTY_FORM);
       onModalVisibleChange(false);
     } catch (error) {
-      setFormError(explainError(error));
+      setFormError(error instanceof Error ? error.message : explainError(error));
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -134,7 +134,9 @@ export function YourPeopleSection({
             setTileError(null);
             void onRemove(contact)
               .catch((error: unknown) => {
-                setTileError(explainError(error));
+                setTileError(
+                  error instanceof Error ? error.message : explainError(error),
+                );
               })
               .finally(() => {
                 const remainingIds = new Set(removingIdsRef.current);
@@ -261,8 +263,9 @@ export function YourPeopleSection({
                 </Text>
                 {formError ? <ErrorBanner message={formError} /> : null}
 
-                <Field label="Name">
+                <Field label="Name" required>
                   <TextInput
+                    accessibilityHint="Required"
                     accessibilityLabel="Name"
                     autoCapitalize="words"
                     autoComplete="name"
@@ -275,8 +278,9 @@ export function YourPeopleSection({
                     value={form.name}
                   />
                 </Field>
-                <Field label="Phone number">
+                <Field label="Phone number" required>
                   <TextInput
+                    accessibilityHint="Required"
                     accessibilityLabel="Phone number"
                     autoComplete="tel"
                     editable={!saving}
@@ -288,8 +292,9 @@ export function YourPeopleSection({
                     value={form.phone}
                   />
                 </Field>
-                <Field label="Email">
+                <Field label="Email" required>
                   <TextInput
+                    accessibilityHint="Required"
                     accessibilityLabel="Email"
                     autoCapitalize="none"
                     autoComplete="email"
@@ -305,8 +310,9 @@ export function YourPeopleSection({
                 </Field>
 
                 <View style={styles.field}>
-                  <Text style={styles.label}>Relationship</Text>
+                  <Text style={styles.label}>Relationship *</Text>
                   <View
+                    accessibilityHint="Required"
                     accessibilityLabel="Relationship"
                     accessibilityRole="radiogroup"
                     style={styles.relationships}
@@ -372,14 +378,17 @@ export function YourPeopleSection({
 function Field({
   children,
   label,
+  required = false,
 }: {
   children: React.ReactNode;
   label: string;
+  required?: boolean;
 }) {
   return (
     <View style={styles.field}>
       <Text accessible={false} style={styles.label}>
         {label}
+        {required ? " *" : ""}
       </Text>
       {children}
     </View>

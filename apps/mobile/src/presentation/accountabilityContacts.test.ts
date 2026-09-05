@@ -23,6 +23,16 @@ describe("accountability contact rules", () => {
       "Colleague",
       "Other",
     ]);
+    expect(RELATIONSHIP_OPTIONS.map(({ value }) => value)).toEqual([
+      "spouse",
+      "father",
+      "mother",
+      "daughter",
+      "son",
+      "friend",
+      "colleague",
+      "other",
+    ]);
   });
 
   test.each([

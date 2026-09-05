@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
@@ -44,6 +44,7 @@ export default function ProfileScreen() {
   const [contactsStatus, setContactsStatus] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [peopleModalVisible, setPeopleModalVisible] = useState(false);
+  const contactsRequestRef = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,16 +60,22 @@ export default function ProfileScreen() {
   }, []);
 
   const loadContacts = useCallback(async () => {
+    const requestId = ++contactsRequestRef.current;
     setContactsLoading(true);
     setContactsError(null);
     try {
-      setContacts(await fetchAccountabilityContacts());
-    } catch (caughtError) {
-      setContactsError(
-        `We couldn’t load your people. ${explainError(caughtError)}`,
-      );
+      const loadedContacts = await fetchAccountabilityContacts();
+      if (contactsRequestRef.current === requestId) {
+        setContacts(loadedContacts);
+      }
+    } catch {
+      if (contactsRequestRef.current === requestId) {
+        setContactsError("We couldn’t load your people. Try again.");
+      }
     } finally {
-      setContactsLoading(false);
+      if (contactsRequestRef.current === requestId) {
+        setContactsLoading(false);
+      }
     }
   }, []);
 
@@ -80,31 +87,33 @@ export default function ProfileScreen() {
   const createContact = async (
     input: CreateAccountabilityContactInput,
   ): Promise<AccountabilityContact> => {
+    contactsRequestRef.current += 1;
+    setContactsLoading(false);
+    setContactsStatus(null);
     try {
       const created = await createAccountabilityContact(input);
       setContacts((current) => [...current, created]);
-      setContactsStatus("Loved one added.");
-      setContactsError(null);
+      setContactsStatus(`${created.name} added.`);
       return created;
-    } catch (caughtError) {
-      setContactsError(explainError(caughtError));
-      throw caughtError;
+    } catch {
+      throw new Error(`We couldn’t add ${input.name}. Try again.`);
     }
   };
 
   const removeContact = async (
     contact: AccountabilityContact,
   ): Promise<void> => {
+    contactsRequestRef.current += 1;
+    setContactsLoading(false);
+    setContactsStatus(null);
     try {
       await removeAccountabilityContact(contact.id);
       setContacts((current) =>
         current.filter(({ id }) => id !== contact.id),
       );
       setContactsStatus(`${contact.name} removed.`);
-      setContactsError(null);
-    } catch (caughtError) {
-      setContactsError(explainError(caughtError));
-      throw caughtError;
+    } catch {
+      throw new Error(`We couldn’t remove ${contact.name}. Try again.`);
     }
   };
 
