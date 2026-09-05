@@ -12,7 +12,7 @@ describe("app navigation", () => {
   });
 
   test("uses the app SOS route and Ember brand color", () => {
-    expect(SOS_PATH).toBe("/(app)/sos");
+    expect(SOS_PATH).toBe("/(app)/(tabs)/sos");
     expect(colors.ember).toBe("#FF7348");
   });
 });

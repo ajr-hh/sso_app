@@ -159,8 +159,11 @@ describe("getQuickReminderStatus", () => {
     expect(getQuickReminderStatus(false, failure, 2)).toBeNull();
   });
 
-  test("reports a successful outcome", () => {
-    expect(getQuickReminderStatus(false, null, 2)).toBe("Goals updated.");
+  test("introduces the goals it is about to list", () => {
+    expect(getQuickReminderStatus(false, null, 1)).toBe("Your goal right now:");
+    expect(getQuickReminderStatus(false, null, 2)).toBe(
+      "Your goals right now:",
+    );
     expect(getQuickReminderStatus(false, null, 0)).toBe("No goals yet.");
   });
 });

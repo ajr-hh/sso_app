@@ -73,7 +73,13 @@ export function getQuickReminderStatus(
     return null;
   }
 
-  return goalCount > 0 ? "Goals updated." : "No goals yet.";
+  if (goalCount === 0) {
+    return "No goals yet.";
+  }
+
+  // The status doubles as the label above the list, so it names what follows
+  // instead of reporting that a refresh finished.
+  return goalCount === 1 ? "Your goal right now:" : "Your goals right now:";
 }
 
 // Android reads the permanent polite live region on its own, so only iOS needs

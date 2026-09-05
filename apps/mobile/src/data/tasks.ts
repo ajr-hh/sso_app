@@ -42,14 +42,19 @@ export async function fetchTasks(): Promise<DailyTask[]> {
   return data;
 }
 
-export async function addTask(label: string): Promise<DailyTask> {
+// The day is a parameter so a plan made today can leave a task on a later day,
+// such as the check-in the planned-event screen sets for tomorrow.
+export async function addTask(
+  label: string,
+  day = taskDayKey(),
+): Promise<DailyTask> {
   const userId = await requireUserId();
   const { data, error } = await getSupabase()
     .from("daily_tasks")
     .insert({
       user_id: userId,
       label,
-      day: taskDayKey(),
+      day,
     })
     .select("id, label, done")
     .single();

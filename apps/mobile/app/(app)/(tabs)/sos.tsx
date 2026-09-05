@@ -120,10 +120,9 @@ export default function SosScreen() {
 
   return (
     <Screen
-      eyebrow="PAUSE. RESET. CHOOSE."
-      showBack
+      eyebrow="SOS"
       subtitle="Pick the kind of support you need right now."
-      title="SOS"
+      title="Push for Help"
     >
       {SOS_PATHS.map((path) => (
         <PathCard
@@ -141,14 +140,14 @@ export default function SosScreen() {
         <MaterialSymbol
           color={colors.ink}
           name={QUICK_REMINDER.icon}
-          size={24}
+          size={18}
         />
         <Text accessibilityRole="header" style={styles.reminderHeading}>
           {QUICK_REMINDER.heading}
         </Text>
       </View>
 
-      <View style={styles.card}>
+      <View style={styles.reminderCard}>
         <View style={styles.statusRow}>
           {view.showSpinner ? (
             // The status text says the section is loading, so the spinner is
@@ -243,46 +242,61 @@ function PathCard({
       accessibilityLabel={getPathCardLabel(title, body)}
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.pathCard, pressed && styles.pressed]}
     >
       <View style={styles.badge}>
-        <MaterialSymbol color={colors.alert} name={icon} size={24} />
+        <MaterialSymbol color={colors.alert} name={icon} size={44} />
       </View>
-      <Text style={styles.cardTitle}>{title}</Text>
-      <Text style={styles.cardBody}>{body}</Text>
-      <Text style={styles.arrow}>Continue →</Text>
+      <View style={styles.pathCopy}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={styles.cardBody}>{body}</Text>
+        <Text style={styles.arrow}>Continue →</Text>
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  reminderCard: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E2E4E4",
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 6,
+    padding: 16,
+  },
+  // The icon column runs about half the height of the tile, with the heading
+  // beside it and the supporting line under the heading.
+  pathCard: {
+    alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderColor: "#E2E4E4",
     borderRadius: 18,
     borderWidth: 1,
-    gap: 10,
-    padding: 20,
+    flexDirection: "row",
+    gap: 16,
+    padding: 18,
   },
+  pathCopy: { flex: 1, gap: 4 },
   pressed: { opacity: 0.72 },
   disabled: { opacity: 0.6 },
   badge: {
     alignItems: "center",
     backgroundColor: colors.emberTint,
-    borderRadius: 999,
-    height: 44,
+    borderRadius: 22,
+    height: 76,
     justifyContent: "center",
-    width: 44,
+    width: 76,
   },
-  cardTitle: { color: colors.ink, fontSize: 22, fontWeight: "800" },
-  cardBody: { color: colors.body, fontSize: 16, lineHeight: 22 },
+  cardTitle: { color: colors.ink, fontSize: 19, fontWeight: "800" },
+  cardBody: { color: colors.body, fontSize: 14, lineHeight: 19 },
   // The ember accent only reaches 2.5:1 on white, so accent text uses alert.
-  arrow: { color: colors.alert, fontSize: 15, fontWeight: "800" },
+  arrow: { color: colors.alert, fontSize: 14, fontWeight: "800" },
   divider: { backgroundColor: "#D7D9D9", height: 1 },
-  reminderHeader: { alignItems: "center", flexDirection: "row", gap: 10 },
-  reminderHeading: { color: colors.ink, fontSize: 21, fontWeight: "800" },
+  reminderHeader: { alignItems: "center", flexDirection: "row", gap: 8 },
+  reminderHeading: { color: colors.ink, fontSize: 16, fontWeight: "800" },
   statusRow: { alignItems: "center", flexDirection: "row", gap: 8 },
-  statusText: { color: colors.body, fontSize: 15, lineHeight: 21 },
+  statusText: { color: colors.body, fontSize: 13, lineHeight: 18 },
   retry: {
     alignItems: "center",
     alignSelf: "flex-start",
@@ -297,15 +311,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: 10,
-    minHeight: 44,
+    minHeight: 40,
   },
   goalIcon: {
     alignItems: "center",
     backgroundColor: colors.ember,
-    borderRadius: 8,
-    height: 28,
+    borderRadius: 7,
+    height: 24,
     justifyContent: "center",
-    width: 28,
+    width: 24,
   },
-  goalLabel: { color: colors.ink, flex: 1, fontSize: 16, lineHeight: 22 },
+  goalLabel: { color: colors.ink, flex: 1, fontSize: 14, lineHeight: 20 },
 });

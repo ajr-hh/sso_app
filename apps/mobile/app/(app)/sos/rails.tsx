@@ -14,6 +14,11 @@ import { explainError } from "../../../src/lib/errors";
 import { createRailOrderSync } from "../../../src/presentation/rails";
 import type { Profile } from "../../../src/types";
 
+const EYEBROW = "URGENT SUPPORT";
+const TITLE = "Help! I’m about to go off the rails";
+const SUBTITLE =
+  "Choose what’s most likely to help you right now. We’ll help you get back on track, no downward spirals.";
+
 export default function RailsScreen() {
   const orderSync = useRef(createRailOrderSync());
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -43,7 +48,7 @@ export default function RailsScreen() {
 
   if (!profile && !error) {
     return (
-      <SosScreen eyebrow="RIGHT NOW" showBack title="Choose your reset">
+      <SosScreen eyebrow={EYEBROW} showBack title={TITLE}>
         <SosLoading label="Loading your support plan…" />
       </SosScreen>
     );
@@ -51,7 +56,7 @@ export default function RailsScreen() {
 
   if (!profile) {
     return (
-      <SosScreen eyebrow="RIGHT NOW" showBack title="Choose your reset">
+      <SosScreen eyebrow={EYEBROW} showBack title={TITLE}>
         {error ? <ErrorBanner message={error} /> : null}
         <SosButton label="Try again" onPress={load} />
       </SosScreen>
@@ -82,12 +87,7 @@ export default function RailsScreen() {
   };
 
   return (
-    <SosScreen
-      eyebrow="RIGHT NOW"
-      showBack
-      subtitle="Choose the support that fits this moment."
-      title="Choose your reset"
-    >
+    <SosScreen eyebrow={EYEBROW} showBack subtitle={SUBTITLE} title={TITLE}>
       {error ? <ErrorBanner message={error} /> : null}
       <RailList
         onOrderChange={persistOrder}

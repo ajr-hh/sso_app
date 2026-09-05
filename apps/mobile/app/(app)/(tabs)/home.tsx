@@ -21,6 +21,7 @@ import {
 } from "../../../src/data/tasks";
 import { journalStreak, toDayKey } from "../../../src/lib/domain";
 import { explainError } from "../../../src/lib/errors";
+import { SOS_PATH } from "../../../src/navigation/tabs";
 import { colors } from "../../../src/theme/colors";
 import type { Profile } from "../../../src/types";
 
@@ -184,7 +185,7 @@ export default function HomeScreen() {
         accessibilityHint="Opens immediate support options"
         accessibilityLabel="Open SOS support"
         accessibilityRole="button"
-        onPress={() => router.push("/(app)/sos")}
+        onPress={() => router.navigate(SOS_PATH)}
         style={({ pressed }) => [
           styles.sosCard,
           pressed && styles.sosCardPressed,
