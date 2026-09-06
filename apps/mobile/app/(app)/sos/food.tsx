@@ -85,6 +85,7 @@ export default function FoodScreen() {
   const [savingCustom, setSavingCustom] = useState(false);
   const [flyoutVisible, setFlyoutVisible] = useState(false);
 
+  const profileRequestRef = useRef(0);
   const cravingsRequestRef = useRef(0);
   const cravingsMutationRevisionRef = useRef(0);
   const cravingsMutationsInFlightRef = useRef(0);
@@ -104,15 +105,24 @@ export default function FoodScreen() {
   );
 
   const loadProfile = useCallback(async () => {
+    const requestId = ++profileRequestRef.current;
+    const canApply = () => profileRequestRef.current === requestId;
     setProfileLoading(true);
     try {
-      setProfile(await fetchProfile());
-      setProfileError(null);
+      const loaded = await fetchProfile();
+      if (canApply()) {
+        setProfile(loaded);
+        setProfileError(null);
+      }
     } catch {
-      setProfile(null);
-      setProfileError(FOOD_SCREEN_ERRORS.rules);
+      if (canApply()) {
+        setProfile(null);
+        setProfileError(FOOD_SCREEN_ERRORS.rules);
+      }
     } finally {
-      setProfileLoading(false);
+      if (canApply()) {
+        setProfileLoading(false);
+      }
     }
   }, []);
 

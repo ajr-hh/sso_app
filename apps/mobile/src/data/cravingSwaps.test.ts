@@ -159,7 +159,33 @@ describe("craving swap data", () => {
     );
   });
 
-  test("preserves Supabase create errors through the mutation wrapper", async () => {
+  test("maps a Supabase fetch error to a fixed member-safe message", async () => {
+    const idOrder = jest.fn().mockResolvedValue({
+      data: null,
+      error: { message: "permission denied for table craving_swaps" },
+    });
+    const createdOrder = jest.fn().mockReturnValue({ order: idOrder });
+    const favoriteOrder = jest.fn().mockReturnValue({ order: createdOrder });
+    const activeFilter = jest.fn().mockReturnValue({ order: favoriteOrder });
+    const ownerFilter = jest.fn().mockReturnValue({ eq: activeFilter });
+    const cravingFilter = jest.fn().mockReturnValue({ eq: ownerFilter });
+    mockedGetSupabase.mockReturnValue({
+      auth: signedInAuth,
+      from: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({ eq: cravingFilter }),
+      }),
+    } as never);
+
+    const error = await fetchCravingSwaps("craving-1").catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Something went wrong.");
+    expect((error as Error).message).not.toContain("permission denied");
+    expect((error as Error).message).not.toContain("craving_swaps");
+  });
+
+  test("maps a Supabase create error to a fixed member-safe message", async () => {
     const single = jest.fn().mockResolvedValue({
       data: null,
       error: { message: "Swap insert failed" },
@@ -173,15 +199,18 @@ describe("craving swap data", () => {
       }),
     } as never);
 
-    await expect(
-      createCravingSwap({
-        craving_id: "craving-1",
-        label: "Private swap",
-        favorited: false,
-        source: "ai",
-        rule_tags: ["private-allergen"],
-      }),
-    ).rejects.toThrow("Swap insert failed");
+    const error = await createCravingSwap({
+      craving_id: "craving-1",
+      label: "Private swap",
+      favorited: false,
+      source: "ai",
+      rule_tags: ["private-allergen"],
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Something went wrong.");
+    expect((error as Error).message).not.toContain("Swap insert failed");
+    expect((error as Error).message).not.toContain("Private swap");
+    expect((error as Error).message).not.toContain("private-allergen");
   });
 
   test("sanitizes thrown create errors containing swap and allergen values", async () => {
@@ -257,15 +286,18 @@ describe("craving swap data", () => {
     );
   });
 
-  test("preserves Supabase update errors through mutation wrappers", async () => {
+  test("maps a Supabase update error to a fixed member-safe message", async () => {
     mockOwnedUpdate({
       data: null,
       error: { message: "Swap update failed" },
     });
 
-    await expect(setSwapFavorited("swap-1", true)).rejects.toThrow(
-      "Swap update failed",
+    const error = await setSwapFavorited("swap-1", true).catch(
+      (caught: unknown) => caught,
     );
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Something went wrong.");
+    expect((error as Error).message).not.toContain("Swap update failed");
   });
 
   test("sanitizes thrown favorite errors containing a diet value", async () => {

@@ -35,7 +35,7 @@ export async function fetchProfile(): Promise<Profile> {
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error("Something went wrong.");
   }
 
   const railOrder: RailId[] = [];
@@ -104,6 +104,6 @@ export async function saveProfile(
     .eq("deleted", false);
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error("Something went wrong.");
   }
 }

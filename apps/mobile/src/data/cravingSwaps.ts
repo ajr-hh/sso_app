@@ -16,11 +16,7 @@ export type CreateCravingSwapInput = Omit<CravingSwap, "id">;
 async function requireUserId(): Promise<string> {
   const { data, error } = await getSupabase().auth.getUser();
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data.user) {
+  if (error || !data.user) {
     throw new Error("You must be signed in to manage craving swaps.");
   }
 
@@ -50,7 +46,7 @@ export async function fetchCravingSwaps(
     .order("id", { ascending: true });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error("Something went wrong.");
   }
 
   return data;
@@ -76,7 +72,7 @@ export async function createCravingSwap(
   );
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error("Something went wrong.");
   }
 
   return data;
@@ -101,7 +97,7 @@ async function updateActiveSwap(
   );
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error("Something went wrong.");
   }
 
   if (!data) {

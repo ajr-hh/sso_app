@@ -70,13 +70,7 @@ describe("cravings and generation migration", () => {
           "Members update their craving swaps",
         ],
       ],
-      [
-        "generation_jobs",
-        [
-          "Members select their generation jobs",
-          "Members insert their pending generation jobs",
-        ],
-      ],
+      ["generation_jobs", ["Members select their generation jobs"]],
     ] as const) {
       for (const policy of policies) {
         expect(normalizedMigration).toContain(
@@ -123,11 +117,12 @@ describe("cravings and generation migration", () => {
     );
   });
 
-  test("requires pending status when inserting generation jobs", () => {
+  test("drops leftover authenticated insert on generation jobs and never recreates it", () => {
     expect(normalizedMigration).toContain(
-      'create policy "Members insert their pending generation jobs" ' +
-        "on public.generation_jobs for insert to authenticated with check ( " +
-        "(select auth.uid()) = user_id and status = 'pending' );",
+      'drop policy if exists "Members insert their pending generation jobs" on public.generation_jobs;',
+    );
+    expect(migration).not.toContain(
+      'create policy "Members insert their pending generation jobs"',
     );
   });
 
@@ -180,7 +175,7 @@ describe("cravings and generation migration", () => {
     );
   });
 
-  test("revokes broad access and grants only select and pending insert on generation jobs", () => {
+  test("revokes authenticated insert so jobs are created only through claim_generation_job", () => {
     expect(normalizedMigration).toContain(
       "revoke all on table public.generation_jobs from anon, public, authenticated;",
     );
@@ -188,6 +183,9 @@ describe("cravings and generation migration", () => {
       "grant select on table public.generation_jobs to authenticated;",
     );
     expect(normalizedMigration).toContain(
+      "revoke insert on table public.generation_jobs from authenticated;",
+    );
+    expect(normalizedMigration).not.toContain(
       "grant insert (user_id, kind, status, input) on table public.generation_jobs to authenticated;",
     );
     expect(normalizedMigration).not.toContain(

@@ -636,6 +636,31 @@ describe("Better Choices food screen", () => {
     expect(text(renderer)).not.toContain("duplicate key");
   });
 
+  test("does not apply a stale profile result after a newer load", async () => {
+    const stale = deferred<Profile>();
+    mockedFetchProfile
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce({ ...profile, food_rules_set: true });
+    const renderer = await renderScreen();
+
+    expect(text(renderer)).toContain("Loading your food rules");
+    expect(text(renderer)).not.toContain(FOOD_SCREEN_COPY.needsRulesTitle);
+
+    await returnToScreen();
+    expect(text(renderer)).not.toContain(FOOD_SCREEN_COPY.needsRulesTitle);
+    expect(chips(renderer)).toHaveLength(1);
+    expect(mockedFetchSwaps).toHaveBeenCalledWith(iceCream.id);
+
+    await act(async () => {
+      stale.resolve({ ...profile, food_rules_set: false });
+      await stale.promise;
+    });
+    await flush();
+
+    expect(text(renderer)).not.toContain(FOOD_SCREEN_COPY.needsRulesTitle);
+    expect(chips(renderer)).toHaveLength(1);
+  });
+
   test("retries a failed food rules load before loading swaps", async () => {
     mockedFetchProfile
       .mockRejectedValueOnce(new Error("relation profiles does not exist"))

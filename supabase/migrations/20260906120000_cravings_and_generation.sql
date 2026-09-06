@@ -140,14 +140,11 @@ create policy "Members select their generation jobs"
 on public.generation_jobs for select to authenticated
 using ((select auth.uid()) = user_id);
 
+-- Job creation goes through claim_generation_job only. A leftover insert
+-- policy from an earlier apply is dropped and never recreated, so members
+-- cannot write arbitrary input jsonb that would count against the hourly cap.
 drop policy if exists "Members insert their pending generation jobs"
 on public.generation_jobs;
-create policy "Members insert their pending generation jobs"
-on public.generation_jobs for insert to authenticated
-with check (
-  (select auth.uid()) = user_id
-  and status = 'pending'
-);
 
 revoke delete on table
   public.cravings,
@@ -174,8 +171,7 @@ on table public.craving_swaps to authenticated;
 revoke all on table public.generation_jobs
 from anon, public, authenticated;
 grant select on table public.generation_jobs to authenticated;
-grant insert (user_id, kind, status, input)
-on table public.generation_jobs to authenticated;
+revoke insert on table public.generation_jobs from authenticated;
 revoke update on table public.generation_jobs from authenticated;
 
 revoke update on table public.profiles from authenticated;

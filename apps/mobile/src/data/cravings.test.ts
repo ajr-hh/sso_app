@@ -81,7 +81,29 @@ describe("craving data", () => {
     expect(select).toHaveBeenCalledWith("id, label, sort_order");
   });
 
-  test("preserves Supabase create errors through the mutation wrapper", async () => {
+  test("maps a Supabase fetch error to a fixed member-safe message", async () => {
+    const idOrder = jest.fn().mockResolvedValue({
+      data: null,
+      error: { message: "permission denied for table cravings" },
+    });
+    const sortOrder = jest.fn().mockReturnValue({ order: idOrder });
+    const activeFilter = jest.fn().mockReturnValue({ order: sortOrder });
+    const ownerFilter = jest.fn().mockReturnValue({ eq: activeFilter });
+    mockedGetSupabase.mockReturnValue({
+      auth: signedInAuth,
+      from: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({ eq: ownerFilter }),
+      }),
+    } as never);
+
+    const error = await fetchCravings().catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Something went wrong.");
+    expect((error as Error).message).not.toContain("permission denied");
+    expect((error as Error).message).not.toContain("cravings");
+  });
+
+  test("maps a Supabase create error to a fixed member-safe message", async () => {
     const single = jest.fn().mockResolvedValue({
       data: null,
       error: { message: "Craving insert failed" },
@@ -95,9 +117,13 @@ describe("craving data", () => {
       }),
     } as never);
 
-    await expect(createCraving("Private label")).rejects.toThrow(
-      "Craving insert failed",
+    const error = await createCraving("Private label").catch(
+      (caught: unknown) => caught,
     );
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Something went wrong.");
+    expect((error as Error).message).not.toContain("Craving insert failed");
+    expect((error as Error).message).not.toContain("Private label");
   });
 
   test("sanitizes thrown create errors containing a private craving", async () => {
@@ -170,7 +196,7 @@ describe("craving data", () => {
     );
   });
 
-  test("preserves Supabase remove errors through the mutation wrapper", async () => {
+  test("maps a Supabase remove error to a fixed member-safe message", async () => {
     const maybeSingle = jest.fn().mockResolvedValue({
       data: null,
       error: { message: "Craving delete failed" },
@@ -186,9 +212,12 @@ describe("craving data", () => {
       }),
     } as never);
 
-    await expect(removeCraving("craving-1")).rejects.toThrow(
-      "Craving delete failed",
+    const error = await removeCraving("craving-1").catch(
+      (caught: unknown) => caught,
     );
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Something went wrong.");
+    expect((error as Error).message).not.toContain("Craving delete failed");
   });
 
   test("sanitizes thrown remove errors containing diet and allergen values", async () => {

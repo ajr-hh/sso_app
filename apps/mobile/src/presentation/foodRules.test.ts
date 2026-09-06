@@ -127,4 +127,32 @@ describe("food rules", () => {
       }),
     ).toEqual(["Rice cake"]);
   });
+
+  test("typed peanut allergen hides peanut butter without an exact tag match", () => {
+    const kept = filterSwapsByRules(Object.keys(tags), tags, {
+      foodRulesSet: true,
+      dietFlags: [],
+      allergens: ["peanut"],
+    });
+    expect(kept).not.toContain("Apple with a little peanut butter");
+    expect(kept).toEqual([
+      "Celery with almond butter",
+      "Protein shake with a few berries",
+      "Frozen banana, blended",
+    ]);
+  });
+
+  test("typed almond allergen hides almond butter via the swap label", () => {
+    const kept = filterSwapsByRules(Object.keys(tags), tags, {
+      foodRulesSet: true,
+      dietFlags: [],
+      allergens: ["almond"],
+    });
+    expect(kept).not.toContain("Celery with almond butter");
+    expect(kept).toEqual([
+      "Apple with a little peanut butter",
+      "Protein shake with a few berries",
+      "Frozen banana, blended",
+    ]);
+  });
 });

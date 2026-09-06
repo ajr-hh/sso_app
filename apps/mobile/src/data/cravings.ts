@@ -10,11 +10,7 @@ export type Craving = {
 async function requireUserId(): Promise<string> {
   const { data, error } = await getSupabase().auth.getUser();
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data.user) {
+  if (error || !data.user) {
     throw new Error("You must be signed in to manage cravings.");
   }
 
@@ -40,7 +36,7 @@ export async function fetchCravings(): Promise<Craving[]> {
     .order("id", { ascending: true });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error("Something went wrong.");
   }
 
   return data;
@@ -60,7 +56,7 @@ export async function createCraving(label: string): Promise<Craving> {
   );
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error("Something went wrong.");
   }
 
   return data;
@@ -80,7 +76,7 @@ export async function removeCraving(id: string): Promise<void> {
   );
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error("Something went wrong.");
   }
 
   if (!data) {
