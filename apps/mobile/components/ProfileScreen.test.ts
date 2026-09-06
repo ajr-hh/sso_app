@@ -11,6 +11,7 @@ import type {
   AccountabilityContact,
   CreateAccountabilityContactInput,
 } from "../src/data/accountabilityContacts";
+import type { Craving } from "../src/data/cravings";
 import type { Profile } from "../src/types";
 
 jest.mock("../src/data/accountabilityContacts", () => ({
@@ -22,6 +23,25 @@ jest.mock("../src/data/profile", () => ({
   fetchProfile: jest.fn(),
   saveProfile: jest.fn(),
 }));
+jest.mock("../src/data/cravings", () => ({
+  createCraving: jest.fn(),
+  fetchCravings: jest.fn(),
+  removeCraving: jest.fn(),
+}));
+jest.mock("./FoodRulesSection", () => {
+  const ReactModule = jest.requireActual("react") as typeof React;
+  return {
+    FoodRulesSection: (props: Record<string, unknown>) =>
+      ReactModule.createElement("FoodRulesSection", props),
+  };
+});
+jest.mock("./UsualCravingsSection", () => {
+  const ReactModule = jest.requireActual("react") as typeof React;
+  return {
+    UsualCravingsSection: (props: Record<string, unknown>) =>
+      ReactModule.createElement("UsualCravingsSection", props),
+  };
+});
 jest.mock("./YourPeopleSection", () => {
   const ReactModule = jest.requireActual("react") as typeof React;
   return {
@@ -36,12 +56,22 @@ import {
   fetchAccountabilityContacts,
   removeAccountabilityContact,
 } from "../src/data/accountabilityContacts";
+import {
+  createCraving,
+  fetchCravings,
+  removeCraving,
+} from "../src/data/cravings";
 import { fetchProfile, saveProfile } from "../src/data/profile";
+import type { FoodRulesSectionProps } from "./FoodRulesSection";
+import type { UsualCravingsSectionProps } from "./UsualCravingsSection";
 import type { YourPeopleSectionProps } from "./YourPeopleSection";
 
 const mockedCreateContact = jest.mocked(createAccountabilityContact);
 const mockedFetchContacts = jest.mocked(fetchAccountabilityContacts);
 const mockedRemoveContact = jest.mocked(removeAccountabilityContact);
+const mockedCreateCraving = jest.mocked(createCraving);
+const mockedFetchCravings = jest.mocked(fetchCravings);
+const mockedRemoveCraving = jest.mocked(removeCraving);
 const mockedFetchProfile = jest.mocked(fetchProfile);
 const mockedSaveProfile = jest.mocked(saveProfile);
 
@@ -67,6 +97,7 @@ const contact: AccountabilityContact = {
   phone: "555-867-5309",
   relationship: "friend",
 };
+const craving: Craving = { id: "craving-1", label: "Pizza", sort_order: 0 };
 
 const input: CreateAccountabilityContactInput = {
   email: contact.email,
@@ -98,6 +129,20 @@ function peopleProps(renderer: ReactTestRenderer): YourPeopleSectionProps {
   return renderer.root.findByType(
     "YourPeopleSection" as unknown as React.ElementType,
   ).props as YourPeopleSectionProps;
+}
+
+function foodRulesProps(renderer: ReactTestRenderer): FoodRulesSectionProps {
+  return renderer.root.findByType(
+    "FoodRulesSection" as unknown as React.ElementType,
+  ).props as FoodRulesSectionProps;
+}
+
+function cravingsProps(
+  renderer: ReactTestRenderer,
+): UsualCravingsSectionProps {
+  return renderer.root.findByType(
+    "UsualCravingsSection" as unknown as React.ElementType,
+  ).props as UsualCravingsSectionProps;
 }
 
 function buttonByText(
@@ -135,6 +180,9 @@ describe("ProfileScreen contact orchestration", () => {
     mockedFetchContacts.mockResolvedValue([]);
     mockedCreateContact.mockResolvedValue(contact);
     mockedRemoveContact.mockResolvedValue();
+    mockedFetchCravings.mockResolvedValue([]);
+    mockedCreateCraving.mockResolvedValue(craving);
+    mockedRemoveCraving.mockResolvedValue();
     mockedSaveProfile.mockResolvedValue();
   });
 
@@ -409,5 +457,58 @@ describe("ProfileScreen contact orchestration", () => {
       await createPromise;
     });
     expect(peopleProps(renderer).status).toBe("Jamie Rivera added.");
+  });
+
+  test("saves food rules independently with exactly the food rule fields", async () => {
+    const renderer = await renderScreen();
+
+    await act(async () => {
+      await foodRulesProps(renderer).onSave({
+        food_rules_set: true,
+        diet_flags: ["vegetarian"],
+        allergens: ["shellfish"],
+      });
+    });
+
+    expect(mockedSaveProfile).toHaveBeenCalledWith({
+      food_rules_set: true,
+      diet_flags: ["vegetarian"],
+      allergens: ["shellfish"],
+    });
+  });
+
+  test("does not let a stale cravings load overwrite a successful add", async () => {
+    const staleLoad = deferred<Craving[]>();
+    mockedFetchCravings.mockReturnValue(staleLoad.promise);
+    const renderer = await renderScreen();
+
+    await act(async () => {
+      await cravingsProps(renderer).onCreate("Pizza");
+    });
+    expect(cravingsProps(renderer).cravings).toEqual([craving]);
+    expect(cravingsProps(renderer).status).toBe("Pizza added.");
+
+    await act(async () => {
+      staleLoad.resolve([]);
+      await staleLoad.promise;
+    });
+    expect(cravingsProps(renderer).cravings).toEqual([craving]);
+  });
+
+  test("keeps craving failure messages private while announcing removal", async () => {
+    mockedFetchCravings.mockResolvedValue([craving]);
+    const renderer = await renderScreen();
+    mockedRemoveCraving.mockRejectedValueOnce(new Error("private Pizza value"));
+
+    const error = await captureRejection(() =>
+      cravingsProps(renderer).onRemove(craving),
+    );
+    expect(error.message).toBe("We couldn’t remove that craving. Try again.");
+    expect(error.message).not.toContain(craving.label);
+
+    await act(async () => {
+      await cravingsProps(renderer).onRemove(craving);
+    });
+    expect(cravingsProps(renderer).status).toBe("Pizza removed.");
   });
 });

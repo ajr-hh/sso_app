@@ -13,6 +13,11 @@ import {
 } from "react-native";
 
 import { ErrorBanner } from "../../../components/ErrorBanner";
+import {
+  FoodRulesSection,
+  type FoodRulesSaveInput,
+} from "../../../components/FoodRulesSection";
+import { UsualCravingsSection } from "../../../components/UsualCravingsSection";
 import { YourPeopleSection } from "../../../components/YourPeopleSection";
 import {
   createAccountabilityContact,
@@ -21,6 +26,12 @@ import {
   type AccountabilityContact,
   type CreateAccountabilityContactInput,
 } from "../../../src/data/accountabilityContacts";
+import {
+  createCraving,
+  fetchCravings,
+  removeCraving,
+  type Craving,
+} from "../../../src/data/cravings";
 import { fetchProfile, saveProfile } from "../../../src/data/profile";
 import { explainError } from "../../../src/lib/errors";
 import {
@@ -36,17 +47,24 @@ const coachOptions = ["marcus", "elena"] as const;
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [contacts, setContacts] = useState<AccountabilityContact[]>([]);
+  const [cravings, setCravings] = useState<Craving[]>([]);
   const [loading, setLoading] = useState(true);
   const [contactsLoading, setContactsLoading] = useState(true);
+  const [cravingsLoading, setCravingsLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contactsError, setContactsError] = useState<string | null>(null);
+  const [cravingsError, setCravingsError] = useState<string | null>(null);
   const [contactsStatus, setContactsStatus] = useState<string | null>(null);
+  const [cravingsStatus, setCravingsStatus] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [peopleModalVisible, setPeopleModalVisible] = useState(false);
   const contactsRequestRef = useRef(0);
   const contactsMutationRevisionRef = useRef(0);
   const contactsMutationsInFlightRef = useRef(0);
+  const cravingsRequestRef = useRef(0);
+  const cravingsMutationRevisionRef = useRef(0);
+  const cravingsMutationsInFlightRef = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,10 +106,34 @@ export default function ProfileScreen() {
     }
   }, []);
 
+  const loadCravings = useCallback(async () => {
+    const requestId = ++cravingsRequestRef.current;
+    const mutationRevision = cravingsMutationRevisionRef.current;
+    const canApply = () =>
+      cravingsRequestRef.current === requestId &&
+      cravingsMutationRevisionRef.current === mutationRevision &&
+      cravingsMutationsInFlightRef.current === 0;
+    setCravingsLoading(true);
+    try {
+      const loadedCravings = await fetchCravings();
+      if (canApply()) {
+        setCravings(loadedCravings);
+        setCravingsError(null);
+      }
+    } catch {
+      if (canApply()) {
+        setCravingsError("We couldn’t load your usual cravings. Try again.");
+      }
+    } finally {
+      if (canApply()) setCravingsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
     void loadContacts();
-  }, [load, loadContacts]);
+    void loadCravings();
+  }, [load, loadContacts, loadCravings]);
 
   const beginContactMutation = () => {
     contactsMutationsInFlightRef.current += 1;
@@ -107,6 +149,22 @@ export default function ProfileScreen() {
     );
     contactsMutationRevisionRef.current += 1;
     setContactsLoading(false);
+  };
+
+  const beginCravingMutation = () => {
+    cravingsMutationsInFlightRef.current += 1;
+    cravingsMutationRevisionRef.current += 1;
+    setCravingsLoading(false);
+    setCravingsStatus(null);
+  };
+
+  const finishCravingMutation = () => {
+    cravingsMutationsInFlightRef.current = Math.max(
+      0,
+      cravingsMutationsInFlightRef.current - 1,
+    );
+    cravingsMutationRevisionRef.current += 1;
+    setCravingsLoading(false);
   };
 
   const createContact = async (
@@ -145,6 +203,44 @@ export default function ProfileScreen() {
       );
     } finally {
       finishContactMutation();
+    }
+  };
+
+  const addCraving = async (label: string): Promise<Craving> => {
+    beginCravingMutation();
+    try {
+      const created = await createCraving(label);
+      setCravings((current) => [...current, created]);
+      setCravingsStatus(`${created.label} added.`);
+      return created;
+    } catch {
+      throw new Error("We couldn’t add that craving. Try again.");
+    } finally {
+      finishCravingMutation();
+    }
+  };
+
+  const deleteCraving = async (craving: Craving): Promise<void> => {
+    beginCravingMutation();
+    try {
+      await removeCraving(craving.id);
+      setCravings((current) =>
+        current.filter(({ id }) => id !== craving.id),
+      );
+      setCravingsStatus(`${craving.label} removed.`);
+    } catch {
+      throw new Error("We couldn’t remove that craving. Try again.");
+    } finally {
+      finishCravingMutation();
+    }
+  };
+
+  const saveFoodRules = async (input: FoodRulesSaveInput): Promise<void> => {
+    try {
+      await saveProfile(input);
+      setProfile((current) => (current ? { ...current, ...input } : current));
+    } catch {
+      throw new Error("We couldn’t save your food rules. Try again.");
     }
   };
 
@@ -218,6 +314,20 @@ export default function ProfileScreen() {
           onRemove={removeContact}
           onRetry={() => void loadContacts()}
           status={contactsStatus}
+        />
+        <FoodRulesSection
+          allergens={profile.allergens}
+          dietFlags={profile.diet_flags}
+          onSave={saveFoodRules}
+        />
+        <UsualCravingsSection
+          cravings={cravings}
+          loading={cravingsLoading}
+          loadError={cravingsError}
+          onCreate={addCraving}
+          onRemove={deleteCraving}
+          onRetry={() => void loadCravings()}
+          status={cravingsStatus}
         />
         <Button
           disabled={busy}
