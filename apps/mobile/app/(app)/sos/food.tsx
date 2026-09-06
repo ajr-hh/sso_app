@@ -94,20 +94,6 @@ export default function FoodScreen() {
   const addTriggerRef = useRef<View>(null);
   const focusRestoredRef = useRef(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      void logSosEvent(path, "food").catch((caughtError) => {
-        if (active) {
-          setLogError(explainError(caughtError));
-        }
-      });
-      return () => {
-        active = false;
-      };
-    }, [path]),
-  );
-
   const rules: FoodRules = useMemo(
     () => ({
       foodRulesSet: profile?.food_rules_set ?? false,
@@ -209,13 +195,21 @@ export default function FoodScreen() {
     [rules],
   );
 
-  useEffect(() => {
-    void loadProfile();
-  }, [loadProfile]);
-
-  useEffect(() => {
-    void loadCravings();
-  }, [loadCravings]);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void logSosEvent(path, "food").catch((caughtError) => {
+        if (active) {
+          setLogError(explainError(caughtError));
+        }
+      });
+      void loadProfile();
+      void loadCravings();
+      return () => {
+        active = false;
+      };
+    }, [loadCravings, loadProfile, path]),
+  );
 
   useEffect(() => {
     setSelectedId((current) => getSelectedCravingId(cravings, current));

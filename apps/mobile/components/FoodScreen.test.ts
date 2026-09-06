@@ -35,11 +35,22 @@ const mockRouter = {
   replace: jest.fn(),
 };
 
+let mockFocusCallback: (() => undefined | (() => void)) | null = null;
+let mockBlurFocus: (() => void) | undefined;
+
 jest.mock("expo-router", () => {
   const ReactModule = jest.requireActual("react") as typeof React;
   return {
     useFocusEffect: (callback: () => undefined | (() => void)) => {
-      ReactModule.useEffect(callback, [callback]);
+      ReactModule.useEffect(() => {
+        mockFocusCallback = callback;
+        const cleanup = callback();
+        mockBlurFocus = typeof cleanup === "function" ? cleanup : undefined;
+        return () => {
+          mockBlurFocus?.();
+          mockBlurFocus = undefined;
+        };
+      }, [callback]);
     },
     useLocalSearchParams: () => ({}),
     useRouter: () => mockRouter,
@@ -138,6 +149,15 @@ async function flush(): Promise<void> {
   });
 }
 
+async function returnToScreen(): Promise<void> {
+  await act(async () => {
+    mockBlurFocus?.();
+    const cleanup = mockFocusCallback?.();
+    mockBlurFocus = typeof cleanup === "function" ? cleanup : undefined;
+  });
+  await flush();
+}
+
 async function renderScreen(): Promise<ReactTestRenderer> {
   let renderer!: ReactTestRenderer;
   await act(async () => {
@@ -178,6 +198,8 @@ function text(renderer: ReactTestRenderer): string {
 describe("Better Choices food screen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFocusCallback = null;
+    mockBlurFocus = undefined;
     mockRouter.canGoBack.mockReturnValue(true);
     mockedLogSosEvent.mockResolvedValue();
     mockedFetchProfile.mockResolvedValue(profile);
@@ -216,6 +238,26 @@ describe("Better Choices food screen", () => {
     expect(mockRouter.push).not.toHaveBeenCalled();
     expect(mockedFetchSwaps).not.toHaveBeenCalled();
     expect(mockedGenerate).not.toHaveBeenCalled();
+  });
+
+  test("leaves needs_rules after a later successful profile load on return", async () => {
+    mockedFetchProfile
+      .mockResolvedValueOnce({ ...profile, food_rules_set: false })
+      .mockResolvedValueOnce({ ...profile, food_rules_set: true });
+    mockedFetchCravings
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([iceCream]);
+    const renderer = await renderScreen();
+
+    expect(text(renderer)).toContain(FOOD_SCREEN_COPY.needsRulesTitle);
+    expect(chips(renderer)).toHaveLength(0);
+    expect(mockedFetchSwaps).not.toHaveBeenCalled();
+
+    await returnToScreen();
+
+    expect(text(renderer)).not.toContain(FOOD_SCREEN_COPY.needsRulesTitle);
+    expect(chips(renderer)).toHaveLength(1);
+    expect(mockedFetchSwaps).toHaveBeenCalledWith(iceCream.id);
   });
 
   test("invites a first craving once rules are set", async () => {
