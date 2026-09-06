@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  findNodeHandle,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -28,6 +29,7 @@ export type AddCravingFlyoutProps = {
   existingLabels: readonly string[];
   onClose: () => void;
   onCreate: (label: string) => Promise<Craving>;
+  onDismiss?: () => void;
   visible: boolean;
 };
 
@@ -35,6 +37,7 @@ export function AddCravingFlyout({
   existingLabels,
   onClose,
   onCreate,
+  onDismiss,
   visible,
 }: AddCravingFlyoutProps) {
   const [label, setLabel] = useState("");
@@ -84,6 +87,7 @@ export function AddCravingFlyout({
   return (
     <Modal
       animationType="slide"
+      onDismiss={onDismiss}
       onRequestClose={close}
       onShow={() => inputRef.current?.focus()}
       transparent
@@ -182,13 +186,32 @@ export function UsualCravingsSection({
   const [removingIds, setRemovingIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  const addDisabled = loading || loadError !== null;
   const removingIdsRef = useRef<ReadonlySet<string>>(new Set());
+  const triggerRef = useRef<View>(null);
+  const focusRestoredRef = useRef(true);
 
   useEffect(() => {
     if (status && Platform.OS === "ios") {
       AccessibilityInfo.announceForAccessibility(status);
     }
   }, [status]);
+
+  const restoreTriggerFocus = useCallback(() => {
+    if (focusRestoredRef.current) return;
+    const handle = findNodeHandle(triggerRef.current);
+    if (handle === null) return;
+    focusRestoredRef.current = true;
+    AccessibilityInfo.setAccessibilityFocus(handle);
+  }, []);
+
+  const closeModal = () => {
+    setModalVisible(false);
+  };
+
+  useEffect(() => {
+    if (!modalVisible) restoreTriggerFocus();
+  }, [modalVisible, restoreTriggerFocus]);
 
   const confirmRemove = (craving: Craving) => {
     Alert.alert(
@@ -283,20 +306,26 @@ export function UsualCravingsSection({
         );
       })}
       <Pressable
+        accessibilityState={{ busy: loading, disabled: addDisabled }}
         accessibilityRole="button"
+        disabled={addDisabled}
         onPress={() => {
+          if (addDisabled) return;
           setTileError(null);
+          focusRestoredRef.current = false;
           setModalVisible(true);
         }}
-        style={styles.addButton}
+        ref={triggerRef}
+        style={[styles.addButton, addDisabled && styles.disabled]}
       >
         <MaterialSymbol name="nutrition" size={22} />
         <Text style={styles.addText}>Add a craving</Text>
       </Pressable>
       <AddCravingFlyout
         existingLabels={cravings.map(({ label }) => label)}
-        onClose={() => setModalVisible(false)}
+        onClose={closeModal}
         onCreate={onCreate}
+        onDismiss={restoreTriggerFocus}
         visible={modalVisible}
       />
     </View>

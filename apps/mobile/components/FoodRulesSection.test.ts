@@ -1,6 +1,6 @@
 import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
-import { Text } from "react-native";
+import { AccessibilityInfo, Platform, Text } from "react-native";
 
 import type { DietFlag } from "../src/presentation/foodRules";
 import {
@@ -60,14 +60,21 @@ describe("FoodRulesSection", () => {
     expect(
       renderer.root.findByProps({ accessibilityLabel: "None" }).props
         .accessibilityState,
-    ).toEqual({ selected: true });
+    ).toEqual({ checked: true });
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: "None" }).props
+        .accessibilityRole,
+    ).toBe("checkbox");
+    expect(
+      renderer.root.findAllByProps({ accessibilityRole: "radio" }),
+    ).toHaveLength(0);
+    expect(
+      renderer.root.findAllByProps({ accessibilityRole: "radiogroup" }),
+    ).toHaveLength(0);
   });
 
-  test("validates allergies, normalizes additions, and removes them locally", async () => {
+  test("adding and removing an allergy clears the saved status", async () => {
     const renderer = await render();
-
-    await act(async () => button(renderer, "Add allergy").props.onPress());
-    expect(JSON.stringify(renderer.toJSON())).toContain("Enter an allergy.");
 
     await act(async () =>
       renderer.root
@@ -76,17 +83,38 @@ describe("FoodRulesSection", () => {
     );
     await act(async () => button(renderer, "Add allergy").props.onPress());
     expect(JSON.stringify(renderer.toJSON())).toContain("peanuts");
+    await act(async () => button(renderer, "Save food rules").props.onPress());
+    expect(JSON.stringify(renderer.toJSON())).toContain("Food rules saved.");
+
+    await act(async () =>
+      renderer.root
+        .findByProps({ accessibilityLabel: "Allergy" })
+        .props.onChangeText("  DAIRY  "),
+    );
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("Food rules saved.");
+    await act(async () => button(renderer, "Add allergy").props.onPress());
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("Food rules saved.");
+
+    await act(async () => button(renderer, "Save food rules").props.onPress());
+    expect(JSON.stringify(renderer.toJSON())).toContain("Food rules saved.");
 
     await act(async () =>
       renderer.root
         .findByProps({ accessibilityLabel: "Remove allergy peanuts" })
         .props.onPress(),
     );
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("Food rules saved.");
     expect(
       renderer.root.findAllByProps({
         accessibilityLabel: "Remove allergy peanuts",
       }),
     ).toHaveLength(0);
+  });
+
+  test("validates an empty allergy", async () => {
+    const renderer = await render();
+    await act(async () => button(renderer, "Add allergy").props.onPress());
+    expect(JSON.stringify(renderer.toJSON())).toContain("Enter an allergy.");
   });
 
   test("saves exactly food rule fields and derives None by clearing other diets", async () => {
@@ -107,5 +135,78 @@ describe("FoodRulesSection", () => {
       diet_flags: [] as DietFlag[],
       food_rules_set: true,
     });
+  });
+
+  test("announces save success on iOS without duplicating Android live regions", async () => {
+    const announce = jest
+      .spyOn(AccessibilityInfo, "announceForAccessibility")
+      .mockImplementation();
+    const originalPlatform = Platform.OS;
+
+    Object.defineProperty(Platform, "OS", { configurable: true, value: "ios" });
+    const iosRenderer = await render();
+    await act(async () =>
+      button(iosRenderer, "Save food rules").props.onPress(),
+    );
+    expect(announce).toHaveBeenCalledWith("Food rules saved.");
+    expect(
+      iosRenderer.root.findByProps({ children: "Food rules saved." }).props
+        .accessibilityLiveRegion,
+    ).toBeUndefined();
+
+    announce.mockClear();
+    Object.defineProperty(Platform, "OS", {
+      configurable: true,
+      value: "android",
+    });
+    const androidRenderer = await render();
+    await act(async () =>
+      button(androidRenderer, "Save food rules").props.onPress(),
+    );
+    expect(announce).not.toHaveBeenCalled();
+    expect(
+      androidRenderer.root.findByProps({ children: "Food rules saved." }).props
+        .accessibilityLiveRegion,
+    ).toBe("polite");
+
+    Object.defineProperty(Platform, "OS", {
+      configurable: true,
+      value: originalPlatform,
+    });
+    announce.mockRestore();
+  });
+
+  test("sanitizes rejected saves, preserves edits, and re-enables controls", async () => {
+    const onSave = jest.fn(async () => {
+      throw new Error("private shellfish value");
+    });
+    const renderer = await render({ onSave });
+
+    await act(async () =>
+      renderer.root
+        .findByProps({ accessibilityLabel: "Vegetarian" })
+        .props.onPress(),
+    );
+    await act(async () =>
+      renderer.root
+        .findByProps({ accessibilityLabel: "Allergy" })
+        .props.onChangeText("shellfish"),
+    );
+    await act(async () => button(renderer, "Add allergy").props.onPress());
+    await act(async () => button(renderer, "Save food rules").props.onPress());
+
+    const output = JSON.stringify(renderer.toJSON());
+    expect(output).toContain("We couldn’t save your food rules. Try again.");
+    expect(output).not.toContain("private shellfish value");
+    expect(output).toContain("shellfish");
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: "Vegetarian" }).props
+        .accessibilityState,
+    ).toEqual({ checked: true });
+    expect(button(renderer, "Save food rules").props.disabled).toBe(false);
+    expect(
+      renderer.root.findByProps({ accessibilityLabel: "Allergy" }).props
+        .editable,
+    ).toBe(true);
   });
 });

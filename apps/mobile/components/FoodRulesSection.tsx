@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -55,6 +57,11 @@ export function FoodRulesSection({
 
   useEffect(() => setAllergens(initialAllergens), [initialAllergens]);
   useEffect(() => setDietFlags(initialDietFlags), [initialDietFlags]);
+  useEffect(() => {
+    if (status && Platform.OS === "ios") {
+      AccessibilityInfo.announceForAccessibility(status);
+    }
+  }, [status]);
 
   const addAllergen = () => {
     const validationError = getAllergenValidationError(allergenInput, allergens);
@@ -67,6 +74,7 @@ export function FoodRulesSection({
     setAllergens((current) => [...current, normalized]);
     setAllergenInput("");
     setError(null);
+    setStatus(null);
   };
 
   const save = async () => {
@@ -100,7 +108,12 @@ export function FoodRulesSection({
       </Text>
       {error ? <ErrorBanner message={error} /> : null}
       {status ? (
-        <Text accessibilityLiveRegion="polite" style={styles.status}>
+        <Text
+          accessibilityLiveRegion={
+            Platform.OS === "android" ? "polite" : undefined
+          }
+          style={styles.status}
+        >
           {status}
         </Text>
       ) : null}
@@ -108,7 +121,6 @@ export function FoodRulesSection({
       <Text style={styles.label}>Diet</Text>
       <View
         accessibilityLabel="Diet"
-        accessibilityRole="radiogroup"
         style={styles.chips}
       >
         {DIET_OPTIONS.map(({ label, value }) => {
@@ -119,8 +131,8 @@ export function FoodRulesSection({
           return (
             <Pressable
               accessibilityLabel={label}
-              accessibilityRole="radio"
-              accessibilityState={{ selected }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: selected }}
               disabled={saving}
               key={value}
               onPress={() => {
@@ -143,11 +155,12 @@ export function FoodRulesSection({
             accessibilityLabel={`Remove allergy ${allergen}`}
             accessibilityRole="button"
             disabled={saving}
-            onPress={() =>
+            onPress={() => {
               setAllergens((current) =>
                 current.filter((item) => item !== allergen),
-              )
-            }
+              );
+              setStatus(null);
+            }}
             style={styles.remove}
           >
             <Text style={styles.removeText}>Remove</Text>
@@ -159,7 +172,10 @@ export function FoodRulesSection({
           accessibilityLabel="Allergy"
           editable={!saving}
           maxLength={41}
-          onChangeText={setAllergenInput}
+          onChangeText={(value) => {
+            setAllergenInput(value);
+            setStatus(null);
+          }}
           placeholder="Add an allergy"
           placeholderTextColor={colors.body}
           style={styles.input}
