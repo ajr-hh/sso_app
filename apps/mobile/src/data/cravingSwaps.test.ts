@@ -49,6 +49,20 @@ function mockOwnedUpdate(result: {
   };
 }
 
+function mockRejectedOwnedUpdate(error: Error) {
+  const maybeSingle = jest.fn().mockRejectedValue(error);
+  const select = jest.fn().mockReturnValue({ maybeSingle });
+  const activeFilter = jest.fn().mockReturnValue({ select });
+  const ownerFilter = jest.fn().mockReturnValue({ eq: activeFilter });
+  const idFilter = jest.fn().mockReturnValue({ eq: ownerFilter });
+  mockedGetSupabase.mockReturnValue({
+    auth: signedInAuth,
+    from: jest.fn().mockReturnValue({
+      update: jest.fn().mockReturnValue({ eq: idFilter }),
+    }),
+  } as never);
+}
+
 describe("craving swap data", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -170,6 +184,32 @@ describe("craving swap data", () => {
     ).rejects.toThrow("Swap insert failed");
   });
 
+  test("sanitizes thrown create errors containing swap and allergen values", async () => {
+    const single = jest
+      .fn()
+      .mockRejectedValue(new Error("Private swap contains shellfish"));
+    mockedGetSupabase.mockReturnValue({
+      auth: signedInAuth,
+      from: jest.fn().mockReturnValue({
+        insert: jest.fn().mockReturnValue({
+          select: jest.fn().mockReturnValue({ single }),
+        }),
+      }),
+    } as never);
+
+    const error = await createCravingSwap({
+      craving_id: "private-craving",
+      label: "Private swap",
+      favorited: false,
+      source: "custom",
+      rule_tags: ["shellfish"],
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Something went wrong.");
+    expect((error as Error).message).not.toContain("Private swap");
+    expect((error as Error).message).not.toContain("shellfish");
+  });
+
   test("updates favorite state only on an active owned swap", async () => {
     const mocks = mockOwnedUpdate({
       data: { id: "swap-1" },
@@ -226,5 +266,31 @@ describe("craving swap data", () => {
     await expect(setSwapFavorited("swap-1", true)).rejects.toThrow(
       "Swap update failed",
     );
+  });
+
+  test("sanitizes thrown favorite errors containing a diet value", async () => {
+    mockRejectedOwnedUpdate(new Error("vegan favorite failed"));
+
+    const error = await setSwapFavorited("private-swap", true).catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Something went wrong.");
+    expect((error as Error).message).not.toContain("vegan");
+    expect((error as Error).message).not.toContain("private-swap");
+  });
+
+  test("sanitizes thrown remove errors containing craving and swap values", async () => {
+    mockRejectedOwnedUpdate(
+      new Error("Private craving and Private swap removal failed"),
+    );
+
+    const error = await removeCravingSwap("private-swap").catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Something went wrong.");
+    expect((error as Error).message).not.toContain("Private craving");
+    expect((error as Error).message).not.toContain("Private swap");
   });
 });

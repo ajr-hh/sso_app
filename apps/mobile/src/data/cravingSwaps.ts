@@ -1,4 +1,3 @@
-import { explainError } from "../lib/errors";
 import { getSupabase } from "../lib/supabase";
 
 export type CravingSwapSource = "catalog" | "ai" | "custom";
@@ -28,6 +27,14 @@ async function requireUserId(): Promise<string> {
   return data.user.id;
 }
 
+async function executeMutation<T>(request: PromiseLike<T>): Promise<T> {
+  try {
+    return await request;
+  } catch {
+    throw new Error("Something went wrong.");
+  }
+}
+
 export async function fetchCravingSwaps(
   cravingId: string,
 ): Promise<CravingSwap[]> {
@@ -52,9 +59,9 @@ export async function fetchCravingSwaps(
 export async function createCravingSwap(
   input: CreateCravingSwapInput,
 ): Promise<CravingSwap> {
-  try {
-    const userId = await requireUserId();
-    const { data, error } = await getSupabase()
+  const userId = await requireUserId();
+  const { data, error } = await executeMutation(
+    getSupabase()
       .from("craving_swaps")
       .insert({
         user_id: userId,
@@ -65,16 +72,14 @@ export async function createCravingSwap(
         rule_tags: input.rule_tags,
       })
       .select("id, craving_id, label, favorited, source, rule_tags")
-      .single();
+      .single(),
+  );
 
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return data;
-  } catch (error) {
-    throw new Error(explainError(error));
+  if (error) {
+    throw new Error(error.message);
   }
+
+  return data;
 }
 
 async function updateActiveSwap(
@@ -83,26 +88,24 @@ async function updateActiveSwap(
     | { favorited: boolean }
     | { deleted: true; deleted_at: string },
 ): Promise<void> {
-  try {
-    const userId = await requireUserId();
-    const { data, error } = await getSupabase()
+  const userId = await requireUserId();
+  const { data, error } = await executeMutation(
+    getSupabase()
       .from("craving_swaps")
       .update(patch)
       .eq("id", id)
       .eq("user_id", userId)
       .eq("deleted", false)
       .select("id")
-      .maybeSingle();
+      .maybeSingle(),
+  );
 
-    if (error) {
-      throw new Error(error.message);
-    }
+  if (error) {
+    throw new Error(error.message);
+  }
 
-    if (!data) {
-      throw new Error("Craving swap was not found or is no longer active.");
-    }
-  } catch (error) {
-    throw new Error(explainError(error));
+  if (!data) {
+    throw new Error("Craving swap was not found or is no longer active.");
   }
 }
 

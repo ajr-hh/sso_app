@@ -1,4 +1,3 @@
-import { explainError } from "../lib/errors";
 import { getSupabase } from "../lib/supabase";
 import { normalizeCravingLabel } from "../presentation/cravings";
 
@@ -22,6 +21,14 @@ async function requireUserId(): Promise<string> {
   return data.user.id;
 }
 
+async function executeMutation<T>(request: PromiseLike<T>): Promise<T> {
+  try {
+    return await request;
+  } catch {
+    throw new Error("Something went wrong.");
+  }
+}
+
 export async function fetchCravings(): Promise<Craving[]> {
   const userId = await requireUserId();
   const { data, error } = await getSupabase()
@@ -40,47 +47,43 @@ export async function fetchCravings(): Promise<Craving[]> {
 }
 
 export async function createCraving(label: string): Promise<Craving> {
-  try {
-    const userId = await requireUserId();
-    const { data, error } = await getSupabase()
+  const userId = await requireUserId();
+  const { data, error } = await executeMutation(
+    getSupabase()
       .from("cravings")
       .insert({
         user_id: userId,
         label: normalizeCravingLabel(label),
       })
       .select("id, label, sort_order")
-      .single();
+      .single(),
+  );
 
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return data;
-  } catch (error) {
-    throw new Error(explainError(error));
+  if (error) {
+    throw new Error(error.message);
   }
+
+  return data;
 }
 
 export async function removeCraving(id: string): Promise<void> {
-  try {
-    const userId = await requireUserId();
-    const { data, error } = await getSupabase()
+  const userId = await requireUserId();
+  const { data, error } = await executeMutation(
+    getSupabase()
       .from("cravings")
       .update({ deleted: true, deleted_at: new Date().toISOString() })
       .eq("id", id)
       .eq("user_id", userId)
       .eq("deleted", false)
       .select("id")
-      .maybeSingle();
+      .maybeSingle(),
+  );
 
-    if (error) {
-      throw new Error(error.message);
-    }
+  if (error) {
+    throw new Error(error.message);
+  }
 
-    if (!data) {
-      throw new Error("Craving was not found or is no longer active.");
-    }
-  } catch (error) {
-    throw new Error(explainError(error));
+  if (!data) {
+    throw new Error("Craving was not found or is no longer active.");
   }
 }

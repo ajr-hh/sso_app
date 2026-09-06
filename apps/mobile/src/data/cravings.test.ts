@@ -100,10 +100,10 @@ describe("craving data", () => {
     );
   });
 
-  test("uses a generic network error without exposing the craving label", async () => {
+  test("sanitizes thrown create errors containing a private craving", async () => {
     const single = jest
       .fn()
-      .mockRejectedValue(new TypeError("network failed for Private label"));
+      .mockRejectedValue(new Error("failed for Private craving"));
     mockedGetSupabase.mockReturnValue({
       auth: signedInAuth,
       from: jest.fn().mockReturnValue({
@@ -113,14 +113,12 @@ describe("craving data", () => {
       }),
     } as never);
 
-    const error = await createCraving("Private label").catch(
+    const error = await createCraving("Private craving").catch(
       (caught: unknown) => caught,
     );
     expect(error).toBeInstanceOf(Error);
-    expect((error as Error).message).toBe(
-      "Couldn't reach the server. Check your connection.",
-    );
-    expect((error as Error).message).not.toContain("Private label");
+    expect((error as Error).message).toBe("Something went wrong.");
+    expect((error as Error).message).not.toContain("Private craving");
   });
 
   test("soft-deletes only an active craving owned by the user", async () => {
@@ -191,5 +189,30 @@ describe("craving data", () => {
     await expect(removeCraving("craving-1")).rejects.toThrow(
       "Craving delete failed",
     );
+  });
+
+  test("sanitizes thrown remove errors containing diet and allergen values", async () => {
+    const maybeSingle = jest
+      .fn()
+      .mockRejectedValue(new Error("vegan shellfish craving failed"));
+    const select = jest.fn().mockReturnValue({ maybeSingle });
+    const activeFilter = jest.fn().mockReturnValue({ select });
+    const ownerFilter = jest.fn().mockReturnValue({ eq: activeFilter });
+    const idFilter = jest.fn().mockReturnValue({ eq: ownerFilter });
+    mockedGetSupabase.mockReturnValue({
+      auth: signedInAuth,
+      from: jest.fn().mockReturnValue({
+        update: jest.fn().mockReturnValue({ eq: idFilter }),
+      }),
+    } as never);
+
+    const error = await removeCraving("private-craving").catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Something went wrong.");
+    expect((error as Error).message).not.toContain("vegan");
+    expect((error as Error).message).not.toContain("shellfish");
+    expect((error as Error).message).not.toContain("private-craving");
   });
 });
