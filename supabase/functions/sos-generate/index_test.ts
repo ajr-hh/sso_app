@@ -144,6 +144,58 @@ Deno.test("blocks a plural label when the allergen is singular", () => {
   );
 });
 
+Deno.test(
+  "blocks a single-token allergen hiding inside a compound word",
+  () => {
+    const cases: [string, string][] = [
+      ["egg", "Eggnog latte"],
+      ["milk", "Buttermilk pancakes"],
+      ["soy", "Soybean crisps"],
+    ];
+
+    for (const [allergen, label] of cases) {
+      assertFalse(
+        swapIsSafe({ label, ruleTags: [] }, rules([], [allergen])),
+        `${allergen} must block ${label}`,
+      );
+      assertFalse(
+        labels(
+          selectSafeSwaps([{ label, ruleTags: [] }], rules([], [allergen])),
+        ).includes(label),
+        `${allergen} must keep ${label} out of the selection`,
+      );
+    }
+  },
+);
+
+Deno.test("blocks a compound occurrence of a plural allergen too", () => {
+  assertFalse(
+    swapIsSafe({ label: "Eggnog latte", ruleTags: [] }, rules([], ["eggs"])),
+  );
+});
+
+Deno.test("over-blocks a declared allergen rather than risk missing it", () => {
+  // "egg" rules out eggplant. A declared allergen is the member's own
+  // instruction, and the cost is one suggestion that a fallback replaces.
+  assertFalse(
+    swapIsSafe({ label: "Eggplant dip", ruleTags: [] }, rules([], ["egg"])),
+  );
+  // The keyword table stays precise, because a wrong inference would invent a
+  // restriction nobody asked for. Eggplant is still not tagged as eggs.
+  assertEquals(inferRuleTags("Eggplant dip"), []);
+  assertEquals(inferRuleTags("Coconut yogurt bark").includes("nuts"), false);
+});
+
+Deno.test("keeps a one or two letter allergen to exact tokens", () => {
+  // A two-letter substring would match almost any label.
+  assert(
+    swapIsSafe({ label: "Apple slices", ruleTags: [] }, rules([], ["pp"])),
+  );
+  assertFalse(
+    swapIsSafe({ label: "Rice cakes", ruleTags: [] }, rules([], ["rice"])),
+  );
+});
+
 Deno.test("matches a multi-word allergen only as a contiguous phrase", () => {
   const treeNuts = rules([], ["tree nuts"]);
   assertFalse(

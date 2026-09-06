@@ -251,6 +251,17 @@ describe("sos-generate function contract", () => {
     expect(normalized).toContain(
       "allergenTokens: allergens.map((allergen) => tokenize(allergen))",
     );
+    // Token runs alone let an allergen hide inside a compound word ("egg" in
+    // "Eggnog"), so a single-token allergen also matches the squashed text.
+    expect(normalized).toContain(
+      "export function squash(text: string): string",
+    );
+    expect(normalized).toContain("const MIN_SQUASHED_ALLERGEN = 3;");
+    expect(normalized).toContain(
+      "compact.length >= MIN_SQUASHED_ALLERGEN && squashed.includes(compact)",
+    );
+    // Multi-word allergens keep contiguous-token matching only.
+    expect(normalized).toContain("if (allergen.length !== 1) return false;");
   });
 
   test("drops unsafe candidates and backfills only untagged safe swaps", () => {

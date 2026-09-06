@@ -372,26 +372,62 @@ export function tokensContain(haystack: string[], needle: string[]): boolean {
   return false;
 }
 
+// Letters only, so a compound or hyphenated word can be searched as one run.
+export function squash(text: string): string {
+  return text.toLowerCase().replace(/[^a-z]/g, "");
+}
+
+// Token runs alone would miss an allergen hiding inside a compound word:
+// "egg" in "Eggnog latte", "milk" in "Buttermilk pancakes", "soy" in "Soybean
+// crisps". A single-token allergen therefore also matches as a substring of
+// the squashed text. That deliberately over-blocks — a declared allergen of
+// "egg" also rules out eggplant — because a filtered suggestion is replaced by
+// a fallback, while a missed allergen reaches the member.
+//
+// Multi-word allergens stay contiguous-token only: squashing "tree nuts" to
+// "treenuts" would never match real prose, and matching its words separately
+// would block anything mentioning a tree.
+const MIN_SQUASHED_ALLERGEN = 3;
+
 export function allergenHitsText(rules: FoodRules, text: string): boolean {
   const tokens = tokenize(text);
-  return rules.allergenTokens.some((allergen) =>
-    tokensContain(tokens, allergen),
-  );
+  const squashed = squash(text);
+
+  return rules.allergenTokens.some((allergen) => {
+    if (tokensContain(tokens, allergen)) return true;
+    if (allergen.length !== 1) return false;
+
+    // Stemmed, so a profile that says "eggs" still catches "Eggnog". Very
+    // short entries stay token-only; a one or two letter allergen as a
+    // substring would match nearly every label.
+    const compact = allergen[0] ?? "";
+    return (
+      compact.length >= MIN_SQUASHED_ALLERGEN && squashed.includes(compact)
+    );
+  });
 }
 
 // Token matches catch ordinary phrasing; the squashed compare catches compounds
-// like "buttermilk". Short keywords are token-only, because "nut" inside
-// "coconut" or "egg" inside "eggplant" would tag the wrong thing.
+// like "buttermilk". The floor here is higher than for a declared allergen
+// (four letters rather than three), so "nut" inside "coconut" and "egg" inside
+// "eggplant" do not tag the wrong thing. The asymmetry is deliberate: this
+// table is the server guessing what a food contains, and a wrong guess invents
+// a restriction the member never asked for, whereas a declared allergen is the
+// member's own instruction and is worth over-applying.
+const MIN_SQUASHED_KEYWORD = 4;
+
 export function inferRuleTags(label: string): string[] {
   const tokens = tokenize(label);
-  const squashed = label.toLowerCase().replace(/[^a-z]/g, "");
+  const squashed = squash(label);
   const tags: string[] = [];
 
   for (const [tag, keywords] of Object.entries(TAG_KEYWORDS)) {
     const hit = keywords.some((keyword) => {
       if (tokensContain(tokens, tokenize(keyword))) return true;
-      const compact = keyword.replace(/[^a-z]/g, "");
-      return compact.length >= 4 && squashed.includes(compact);
+      const compact = squash(keyword);
+      return (
+        compact.length >= MIN_SQUASHED_KEYWORD && squashed.includes(compact)
+      );
     });
     if (hit) tags.push(tag);
   }
