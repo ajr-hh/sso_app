@@ -183,6 +183,8 @@ describe("UsualCravingsSection", () => {
     const restore = jest
       .spyOn(AccessibilityInfo, "setAccessibilityFocus")
       .mockImplementation();
+    restore.mockClear();
+    (findNodeHandle as jest.Mock).mockClear();
     const renderer = await render();
     focusInput.mockClear();
     act(() => button(renderer, "Add a craving").props.onPress());
@@ -197,15 +199,17 @@ describe("UsualCravingsSection", () => {
     ).toBeDefined();
 
     act(() => button(renderer, "Cancel").props.onPress());
-    expect(findNodeHandle).toHaveBeenCalled();
-    expect(restore).toHaveBeenCalledWith(42);
+    expect(findNodeHandle).not.toHaveBeenCalled();
+    expect(restore).not.toHaveBeenCalled();
     act(() => modal.props.onDismiss());
+    expect(findNodeHandle).toHaveBeenCalledTimes(1);
+    expect(restore).toHaveBeenCalledWith(42);
     expect(restore).toHaveBeenCalledTimes(1);
 
     act(() => button(renderer, "Add a craving").props.onPress());
     const reopenedModal = renderer.root.findByType(Modal);
     act(() => reopenedModal.props.onRequestClose());
-    expect(restore).toHaveBeenCalledTimes(2);
+    expect(restore).toHaveBeenCalledTimes(1);
     act(() => reopenedModal.props.onDismiss());
     expect(restore).toHaveBeenCalledTimes(2);
     restore.mockRestore();
@@ -215,6 +219,8 @@ describe("UsualCravingsSection", () => {
     const restore = jest
       .spyOn(AccessibilityInfo, "setAccessibilityFocus")
       .mockImplementation();
+    restore.mockClear();
+    (findNodeHandle as jest.Mock).mockClear();
     const onCreate = jest.fn(async () => craving);
     const renderer = await render({ onCreate });
 
@@ -224,6 +230,8 @@ describe("UsualCravingsSection", () => {
         .findByProps({ accessibilityViewIsModal: true })
         .props.onAccessibilityEscape(),
     );
+    expect(restore).not.toHaveBeenCalled();
+    act(() => renderer.root.findByType(Modal).props.onDismiss());
     expect(restore).toHaveBeenCalledTimes(1);
 
     act(() => button(renderer, "Add a craving").props.onPress());
@@ -234,6 +242,8 @@ describe("UsualCravingsSection", () => {
     );
     await act(async () => button(renderer, "Add craving").props.onPress());
     expect(onCreate).toHaveBeenCalledWith("Ice cream");
+    expect(restore).toHaveBeenCalledTimes(1);
+    act(() => renderer.root.findByType(Modal).props.onDismiss());
     expect(restore).toHaveBeenCalledTimes(2);
     restore.mockRestore();
   });

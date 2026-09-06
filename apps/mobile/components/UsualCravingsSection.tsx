@@ -209,10 +209,6 @@ export function UsualCravingsSection({
     setModalVisible(false);
   };
 
-  useEffect(() => {
-    if (!modalVisible) restoreTriggerFocus();
-  }, [modalVisible, restoreTriggerFocus]);
-
   const confirmRemove = (craving: Craving) => {
     Alert.alert(
       "Remove craving?",
