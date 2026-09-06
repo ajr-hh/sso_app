@@ -47,9 +47,12 @@ const mockedSaveProfile = jest.mocked(saveProfile);
 
 const profile: Profile = {
   age: 40,
+  allergens: [],
   coach_style: "marcus",
+  diet_flags: [],
   display_name: "Alex",
   email: "alex@example.test",
+  food_rules_set: false,
   id: "user-1",
   motivators: "Better Choices",
   phone: null,

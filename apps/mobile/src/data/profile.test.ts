@@ -15,8 +15,11 @@ describe("profile data", () => {
   test("fetches only the signed-in member's active profile", async () => {
     const row = {
       age: 40,
+      allergens: [" Dairy ", "dairy", "shellfish"],
       coach_style: "marcus",
+      diet_flags: ["vegan", "unknown", "gluten_free"],
       display_name: "Alex",
+      food_rules_set: true,
       id: "user-1",
       motivators: "Family",
       phone: null,
@@ -42,9 +45,12 @@ describe("profile data", () => {
       id: "user-1",
       motivators: "Family",
       rail_order: ["stats", "why"],
+      food_rules_set: true,
+      diet_flags: ["vegan", "gluten_free"],
+      allergens: ["dairy", "shellfish"],
     });
     expect(select).toHaveBeenCalledWith(
-      "id, display_name, age, phone, why_matters, motivators, coach_style, rail_order",
+      "id, display_name, age, phone, why_matters, motivators, coach_style, rail_order, food_rules_set, diet_flags, allergens",
     );
     expect(idFilter).toHaveBeenCalledWith("id", "user-1");
     expect(activeFilter).toHaveBeenCalledWith("deleted", false);
@@ -54,8 +60,11 @@ describe("profile data", () => {
     const single = jest.fn().mockResolvedValue({
       data: {
         age: null,
+        allergens: null,
         coach_style: "elena",
+        diet_flags: null,
         display_name: null,
+        food_rules_set: null,
         id: "user-1",
         motivators: "Family",
         phone: null,
@@ -78,7 +87,12 @@ describe("profile data", () => {
       }),
     } as never);
 
-    await expect(fetchProfile()).resolves.toMatchObject({ rail_order: [] });
+    await expect(fetchProfile()).resolves.toMatchObject({
+      allergens: [],
+      diet_flags: [],
+      food_rules_set: false,
+      rail_order: [],
+    });
   });
 
   test("filters unknown and duplicate rail IDs returned by the database", async () => {

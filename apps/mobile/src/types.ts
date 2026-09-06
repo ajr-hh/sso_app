@@ -1,4 +1,5 @@
 import type { RailId } from "./lib/domain";
+import type { DietFlag } from "./presentation/foodRules";
 
 export type Profile = {
   id: string;
@@ -10,4 +11,7 @@ export type Profile = {
   motivators: string;
   coach_style: "marcus" | "elena";
   rail_order: RailId[];
+  food_rules_set: boolean;
+  diet_flags: DietFlag[];
+  allergens: string[];
 };
