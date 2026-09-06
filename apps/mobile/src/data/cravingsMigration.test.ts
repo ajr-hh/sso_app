@@ -49,9 +49,7 @@ describe("cravings and generation migration", () => {
 
   test("constrains generation jobs and swap sources", () => {
     expect(migration).toContain("check (kind in ('food_swaps'))");
-    expect(migration).toContain(
-      "source in ('catalog', 'ai', 'custom')",
-    );
+    expect(migration).toContain("source in ('catalog', 'ai', 'custom')");
   });
 
   test("is rerunnable and replaces every RLS policy", () => {
@@ -197,13 +195,70 @@ describe("cravings and generation migration", () => {
     );
   });
 
+  test("claims generation jobs through a security definer function", () => {
+    expect(normalizedMigration).toContain(
+      "create or replace function public.claim_generation_job( " +
+        "job_kind text, diet_flag_count integer, allergen_count integer ) " +
+        "returns uuid language plpgsql security definer set search_path = ''",
+    );
+  });
+
+  test("derives the claim owner from auth.uid() and takes no caller user id", () => {
+    expect(normalizedMigration).toContain(
+      "owner_id uuid := (select auth.uid());",
+    );
+    expect(normalizedMigration).not.toMatch(
+      /claim_generation_job\([^)]*user_id/,
+    );
+  });
+
+  test("serializes a member's claims with a transaction advisory lock", () => {
+    expect(normalizedMigration).toContain(
+      "perform pg_catalog.pg_advisory_xact_lock( " +
+        "pg_catalog.hashtext('public.claim_generation_job'), " +
+        "pg_catalog.hashtext(owner_id::text) );",
+    );
+  });
+
+  test("counts the rolling hour and stops at a server-owned cap of ten", () => {
+    expect(normalizedMigration).toContain(
+      "max_per_hour constant integer := 10;",
+    );
+    expect(normalizedMigration).toContain(
+      "where user_id = owner_id and created_at >= pg_catalog.now() - interval '1 hour';",
+    );
+    expect(normalizedMigration).toContain(
+      "if recent_count >= max_per_hour then return null; end if;",
+    );
+  });
+
+  test("inserts pending jobs whose input holds only metadata counts", () => {
+    expect(normalizedMigration).toContain(
+      "insert into public.generation_jobs (user_id, kind, status, input) " +
+        "values ( owner_id, job_kind, 'pending', pg_catalog.jsonb_build_object( " +
+        "'diet_flag_count', greatest(coalesce(diet_flag_count, 0), 0), " +
+        "'allergen_count', greatest(coalesce(allergen_count, 0), 0) ) )",
+    );
+    expect(normalizedMigration).not.toMatch(/jsonb_build_object\([^)]*craving/);
+    expect(normalizedMigration).not.toMatch(
+      /jsonb_build_object\([^)]*allergens/,
+    );
+  });
+
+  test("grants claim execution to authenticated members only", () => {
+    expect(normalizedMigration).toContain(
+      "revoke all on function public.claim_generation_job(text, integer, integer) from public, anon;",
+    );
+    expect(normalizedMigration).toContain(
+      "grant execute on function public.claim_generation_job(text, integer, integer) to authenticated;",
+    );
+  });
+
   test("enforces soft-delete and label invariants", () => {
     expect(migration).toContain("deleted = (deleted_at is not null)");
     expect(migration).toContain("cravings_active_user_label_idx");
     expect(migration).toContain("craving_swaps_active_craving_label_idx");
-    expect(migration).toContain(
-      "references public.cravings (id)",
-    );
+    expect(migration).toContain("references public.cravings (id)");
     expect(normalizedMigration).not.toContain(
       "references public.cravings (id) on delete cascade",
     );

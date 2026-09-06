@@ -191,3 +191,73 @@ grant update (
   diet_flags,
   allergens
 ) on table public.profiles to authenticated;
+
+-- Rate limit and job creation in one transaction. Counting from the client and
+-- then inserting lets parallel invocations each read a count below the cap and
+-- all insert, so the cap is enforced here instead: an advisory lock serializes
+-- the member's own claims, and the cap is a server-side constant no caller can
+-- raise. Returns null when the member is already at the cap.
+--
+-- The job input is built from scalar counts, not caller JSON, so a craving
+-- label or allergen string cannot reach generation_jobs.input on this path.
+create or replace function public.claim_generation_job(
+  job_kind text,
+  diet_flag_count integer,
+  allergen_count integer
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  max_per_hour constant integer := 10;
+  owner_id uuid := (select auth.uid());
+  recent_count integer;
+  new_job_id uuid;
+begin
+  if owner_id is null then
+    raise exception 'authentication required' using errcode = '28000';
+  end if;
+
+  if job_kind is null or job_kind not in ('food_swaps') then
+    raise exception 'unsupported generation kind' using errcode = '22023';
+  end if;
+
+  -- Held until commit and scoped to this member, so one member's burst never
+  -- blocks another member's claim.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtext('public.claim_generation_job'),
+    pg_catalog.hashtext(owner_id::text)
+  );
+
+  select count(*)
+  into recent_count
+  from public.generation_jobs
+  where user_id = owner_id
+    and created_at >= pg_catalog.now() - interval '1 hour';
+
+  if recent_count >= max_per_hour then
+    return null;
+  end if;
+
+  insert into public.generation_jobs (user_id, kind, status, input)
+  values (
+    owner_id,
+    job_kind,
+    'pending',
+    pg_catalog.jsonb_build_object(
+      'diet_flag_count', greatest(coalesce(diet_flag_count, 0), 0),
+      'allergen_count', greatest(coalesce(allergen_count, 0), 0)
+    )
+  )
+  returning id into new_job_id;
+
+  return new_job_id;
+end;
+$$;
+
+revoke all on function public.claim_generation_job(text, integer, integer)
+from public, anon;
+grant execute on function public.claim_generation_job(text, integer, integer)
+to authenticated;
