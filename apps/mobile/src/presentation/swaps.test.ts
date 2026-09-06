@@ -96,6 +96,59 @@ test("filters saved rows using stored ruleTags", () => {
   expect(view.showGenerate).toBe(false);
 });
 
+test("returns empty view when food rules are not set", () => {
+  const view = resolveSwapView({
+    cravingLabel: "ice cream",
+    catalog: FOOD_SWAPS,
+    tags: FOOD_SWAP_TAGS,
+    rules: { foodRulesSet: false, dietFlags: [], allergens: [] },
+    saved: [
+      {
+        id: "1",
+        label: "Custom swap",
+        source: "ai",
+        favorited: false,
+        ruleTags: [],
+      },
+    ],
+  });
+  expect(view).toEqual({ rows: [], showGenerate: false, allFilteredOut: false });
+});
+
+test("appends safe saved-only rows after filtered catalog and drops tagged violations", () => {
+  const view = resolveSwapView({
+    cravingLabel: "Ice cream",
+    catalog: FOOD_SWAPS,
+    tags: FOOD_SWAP_TAGS,
+    rules: { foodRulesSet: true, dietFlags: ["nut_free"], allergens: [] },
+    saved: [
+      {
+        id: "violating",
+        label: "Peanut butter cup",
+        source: "ai",
+        favorited: false,
+        ruleTags: ["peanuts", "nuts"],
+      },
+      {
+        id: "safe",
+        label: "Nice cream blend",
+        source: "ai",
+        favorited: false,
+        ruleTags: [],
+      },
+    ],
+  });
+  const labels = view.rows.map((row) => row.label);
+  expect(labels).not.toContain("Apple with a little peanut butter");
+  expect(labels).not.toContain("Celery with almond butter");
+  expect(labels).not.toContain("Peanut butter cup");
+  expect(labels).toEqual([
+    "Protein shake with a few berries",
+    "Frozen banana, blended",
+    "Nice cream blend",
+  ]);
+});
+
 test("saved row wins over catalog for id source favorited and ruleTags", () => {
   const view = resolveSwapView({
     cravingLabel: "Ice cream",

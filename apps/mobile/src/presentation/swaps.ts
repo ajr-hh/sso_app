@@ -1,5 +1,13 @@
 import { filterSwapsByRules, swapViolatesRules, type FoodRules } from "./foodRules";
 
+/**
+ * Persisted/generated swap row. `ruleTags` holds normalized allergen/diet tags
+ * captured at save time so rows can be re-filtered when food rules change.
+ * Downstream persistence must populate tags for generated swaps; catalog rows
+ * inherit tags from `FOOD_SWAP_TAGS`. An empty array means no known rule
+ * conflicts — untagged safe or custom rows are permitted and are not filtered
+ * out solely for lacking tags.
+ */
 export type SwapRow = {
   id: string;
   label: string;
@@ -64,6 +72,11 @@ function sortFavoritedFirst(rows: SwapRow[]): SwapRow[] {
 
 export function resolveSwapView(input: ResolveSwapInput): ResolveSwapView {
   const { cravingLabel, catalog, tags, rules, saved } = input;
+
+  if (!rules.foodRulesSet) {
+    return { rows: [], showGenerate: false, allFilteredOut: false };
+  }
+
   const catalogKey = findCatalogKey(catalog, cravingLabel);
   const hasCatalogMatch = catalogKey !== null;
   const filteredSaved = saved.filter((row) => !rowViolatesRules(row, rules));
