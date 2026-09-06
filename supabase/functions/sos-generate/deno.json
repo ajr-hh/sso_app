@@ -1,0 +1,10 @@
+{
+  "imports": {
+    "@supabase/server": "npm:@supabase/server@1.5.3"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "lib": ["deno.window", "esnext"]
+  }
+}

@@ -51,7 +51,6 @@ export default function AppLayout() {
     <SafeAreaView edges={["top"]} style={styles.safeArea}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="sos" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="goals" />
         <Stack.Screen name="tasks" />

@@ -1,6 +1,6 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { ErrorBanner } from "../../../components/ErrorBanner";
 import {
@@ -13,16 +13,34 @@ import {
 } from "../../../components/SosUi";
 import { PLANNED_TIPS } from "../../../src/content/planned-tips";
 import { fetchProfile, saveRailOrder } from "../../../src/data/profile";
-import { orderRails, type RailId } from "../../../src/lib/domain";
+import { addTask, taskDayKey } from "../../../src/data/tasks";
+import { addDays, orderRails, type RailId } from "../../../src/lib/domain";
 import { explainError } from "../../../src/lib/errors";
 import { createRailOrderSync } from "../../../src/presentation/rails";
+import {
+  CHECK_IN_DONE,
+  CHECK_IN_LABEL,
+  CHECK_IN_SAVING_LABEL,
+  getCheckInTaskLabel,
+  UPCOMING_EVENTS,
+  type UpcomingEvent,
+} from "../../../src/presentation/planned";
 import { colors } from "../../../src/theme/colors";
 import type { Profile } from "../../../src/types";
+
+const EYEBROW = "PLAN AHEAD";
+const TITLE = "Let’s plan ahead";
+const SUBTITLE =
+  "We have time here. We’re not trying to stop this, just help you make a few smart decisions.";
 
 export default function PlannedScreen() {
   const orderSync = useRef(createRailOrderSync());
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [event, setEvent] = useState<UpcomingEvent | null>(null);
+  const [checkInSaving, setCheckInSaving] = useState(false);
+  const [checkInSet, setCheckInSet] = useState(false);
+  const [checkInError, setCheckInError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token = orderSync.current.beginLoad();
@@ -48,7 +66,7 @@ export default function PlannedScreen() {
 
   if (!profile && !error) {
     return (
-      <SosScreen eyebrow="PLAN AHEAD" showBack title="Set yourself up">
+      <SosScreen eyebrow={EYEBROW} showBack title={TITLE}>
         <SosLoading label="Building your event plan…" />
       </SosScreen>
     );
@@ -56,7 +74,7 @@ export default function PlannedScreen() {
 
   if (!profile) {
     return (
-      <SosScreen eyebrow="PLAN AHEAD" showBack title="Set yourself up">
+      <SosScreen eyebrow={EYEBROW} showBack title={TITLE}>
         {error ? <ErrorBanner message={error} /> : null}
         <SosButton label="Try again" onPress={load} />
       </SosScreen>
@@ -86,14 +104,59 @@ export default function PlannedScreen() {
     }
   };
 
+  const setCheckIn = async () => {
+    if (checkInSaving) return;
+
+    setCheckInSaving(true);
+    setCheckInError(null);
+    try {
+      await addTask(getCheckInTaskLabel(event), addDays(taskDayKey(), 1));
+      setCheckInSet(true);
+    } catch (caughtError) {
+      setCheckInError(explainError(caughtError));
+    } finally {
+      setCheckInSaving(false);
+    }
+  };
+
   return (
-    <SosScreen
-      eyebrow="PLAN AHEAD"
-      showBack
-      subtitle="A few decisions now make the event easier later."
-      title="Set yourself up"
-    >
+    <SosScreen eyebrow={EYEBROW} showBack subtitle={SUBTITLE} title={TITLE}>
       {error ? <ErrorBanner message={error} /> : null}
+
+      <SosCard>
+        <Text style={sosTextStyles.sectionTitle}>What’s coming up?</Text>
+        <View style={styles.eventRow}>
+          {UPCOMING_EVENTS.map((option) => {
+            const selected = option === event;
+
+            return (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                key={option}
+                // Choosing the same one again clears it, so nobody is stuck
+                // with an event they tapped by accident.
+                onPress={() => setEvent(selected ? null : option)}
+                style={({ pressed }) => [
+                  styles.eventChip,
+                  selected && styles.eventChipSelected,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.eventChipText,
+                    selected && styles.eventChipTextSelected,
+                  ]}
+                >
+                  {option}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </SosCard>
+
       <SosCard>
         <Text style={sosTextStyles.sectionTitle}>Before you go</Text>
         {PLANNED_TIPS.map((tip, index) => (
@@ -111,6 +174,31 @@ export default function PlannedScreen() {
         path="planned_event"
         rails={rails}
       />
+
+      {checkInError ? <ErrorBanner message={checkInError} /> : null}
+      <SosButton
+        disabled={checkInSaving || checkInSet}
+        label={
+          checkInSet
+            ? CHECK_IN_DONE
+            : checkInSaving
+              ? CHECK_IN_SAVING_LABEL
+              : CHECK_IN_LABEL
+        }
+        onPress={() => void setCheckIn()}
+        size="large"
+      />
+      {checkInSet ? (
+        <Text
+          accessibilityLiveRegion={
+            Platform.OS === "android" ? "polite" : "none"
+          }
+          role="status"
+          style={styles.checkInNote}
+        >
+          It’s waiting in tomorrow’s tasks.
+        </Text>
+      ) : null}
     </SosScreen>
   );
 }
@@ -129,4 +217,23 @@ const styles = StyleSheet.create({
   },
   tipCopy: { flex: 1 },
   nextTitle: { color: colors.ink, fontSize: 22, fontWeight: "800" },
+  eventRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  eventChip: {
+    alignItems: "center",
+    backgroundColor: colors.canvas,
+    borderColor: "#DCDEDE",
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 48,
+    paddingHorizontal: 16,
+  },
+  eventChipSelected: {
+    backgroundColor: colors.emberTint,
+    borderColor: colors.ember,
+  },
+  eventChipText: { color: colors.ink, fontSize: 15, fontWeight: "700" },
+  eventChipTextSelected: { color: colors.alert },
+  pressed: { opacity: 0.72 },
+  checkInNote: { color: colors.body, fontSize: 14, textAlign: "center" },
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
@@ -13,20 +13,58 @@ import {
 } from "react-native";
 
 import { ErrorBanner } from "../../../components/ErrorBanner";
+import {
+  FoodRulesSection,
+  type FoodRulesSaveInput,
+} from "../../../components/FoodRulesSection";
+import { UsualCravingsSection } from "../../../components/UsualCravingsSection";
+import { YourPeopleSection } from "../../../components/YourPeopleSection";
+import {
+  createAccountabilityContact,
+  fetchAccountabilityContacts,
+  removeAccountabilityContact,
+  type AccountabilityContact,
+  type CreateAccountabilityContactInput,
+} from "../../../src/data/accountabilityContacts";
+import {
+  createCraving,
+  fetchCravings,
+  removeCraving,
+  type Craving,
+} from "../../../src/data/cravings";
 import { fetchProfile, saveProfile } from "../../../src/data/profile";
 import { explainError } from "../../../src/lib/errors";
+import {
+  isMotivationOption,
+  MOTIVATION_OPTIONS,
+  MOTIVATION_PROMPT,
+} from "../../../src/presentation/profile";
 import { colors } from "../../../src/theme/colors";
 import type { Profile } from "../../../src/types";
 
-const motivatorOptions = ["Remember why", "The numbers", "Rewards"] as const;
 const coachOptions = ["marcus", "elena"] as const;
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [contacts, setContacts] = useState<AccountabilityContact[]>([]);
+  const [cravings, setCravings] = useState<Craving[]>([]);
   const [loading, setLoading] = useState(true);
+  const [contactsLoading, setContactsLoading] = useState(true);
+  const [cravingsLoading, setCravingsLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contactsError, setContactsError] = useState<string | null>(null);
+  const [cravingsError, setCravingsError] = useState<string | null>(null);
+  const [contactsStatus, setContactsStatus] = useState<string | null>(null);
+  const [cravingsStatus, setCravingsStatus] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [peopleModalVisible, setPeopleModalVisible] = useState(false);
+  const contactsRequestRef = useRef(0);
+  const contactsMutationRevisionRef = useRef(0);
+  const contactsMutationsInFlightRef = useRef(0);
+  const cravingsRequestRef = useRef(0);
+  const cravingsMutationRevisionRef = useRef(0);
+  const cravingsMutationsInFlightRef = useRef(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,9 +79,170 @@ export default function ProfileScreen() {
     }
   }, []);
 
+  const loadContacts = useCallback(async () => {
+    const requestId = ++contactsRequestRef.current;
+    const mutationRevision = contactsMutationRevisionRef.current;
+    const canApply = () =>
+      contactsRequestRef.current === requestId &&
+      contactsMutationRevisionRef.current === mutationRevision &&
+      contactsMutationsInFlightRef.current === 0;
+    setContactsLoading(true);
+    // A load that can no longer apply leaves the previous error in place so the
+    // retry affordance survives an overlapping mutation.
+    try {
+      const loadedContacts = await fetchAccountabilityContacts();
+      if (canApply()) {
+        setContacts(loadedContacts);
+        setContactsError(null);
+      }
+    } catch {
+      if (canApply()) {
+        setContactsError("We couldn’t load your people. Try again.");
+      }
+    } finally {
+      if (canApply()) {
+        setContactsLoading(false);
+      }
+    }
+  }, []);
+
+  const loadCravings = useCallback(async () => {
+    const requestId = ++cravingsRequestRef.current;
+    const mutationRevision = cravingsMutationRevisionRef.current;
+    const canApply = () =>
+      cravingsRequestRef.current === requestId &&
+      cravingsMutationRevisionRef.current === mutationRevision &&
+      cravingsMutationsInFlightRef.current === 0;
+    setCravingsLoading(true);
+    try {
+      const loadedCravings = await fetchCravings();
+      if (canApply()) {
+        setCravings(loadedCravings);
+        setCravingsError(null);
+      }
+    } catch {
+      if (canApply()) {
+        setCravingsError("We couldn’t load your usual cravings. Try again.");
+      }
+    } finally {
+      if (canApply()) setCravingsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadContacts();
+    void loadCravings();
+  }, [load, loadContacts, loadCravings]);
+
+  const beginContactMutation = () => {
+    contactsMutationsInFlightRef.current += 1;
+    contactsMutationRevisionRef.current += 1;
+    setContactsLoading(false);
+    setContactsStatus(null);
+  };
+
+  const finishContactMutation = () => {
+    contactsMutationsInFlightRef.current = Math.max(
+      0,
+      contactsMutationsInFlightRef.current - 1,
+    );
+    contactsMutationRevisionRef.current += 1;
+    setContactsLoading(false);
+  };
+
+  const beginCravingMutation = () => {
+    cravingsMutationsInFlightRef.current += 1;
+    cravingsMutationRevisionRef.current += 1;
+    setCravingsLoading(false);
+    setCravingsStatus(null);
+  };
+
+  const finishCravingMutation = () => {
+    cravingsMutationsInFlightRef.current = Math.max(
+      0,
+      cravingsMutationsInFlightRef.current - 1,
+    );
+    cravingsMutationRevisionRef.current += 1;
+    setCravingsLoading(false);
+  };
+
+  const createContact = async (
+    input: CreateAccountabilityContactInput,
+  ): Promise<AccountabilityContact> => {
+    beginContactMutation();
+    try {
+      const created = await createAccountabilityContact(input);
+      setContacts((current) => [...current, created]);
+      setContactsStatus(`${created.name} added.`);
+      return created;
+    } catch (caughtError) {
+      throw new Error(
+        `We couldn’t add ${input.name}. ${explainError(caughtError)}`,
+        { cause: caughtError },
+      );
+    } finally {
+      finishContactMutation();
+    }
+  };
+
+  const removeContact = async (
+    contact: AccountabilityContact,
+  ): Promise<void> => {
+    beginContactMutation();
+    try {
+      await removeAccountabilityContact(contact.id);
+      setContacts((current) =>
+        current.filter(({ id }) => id !== contact.id),
+      );
+      setContactsStatus(`${contact.name} removed.`);
+    } catch (caughtError) {
+      throw new Error(
+        `We couldn’t remove ${contact.name}. ${explainError(caughtError)}`,
+        { cause: caughtError },
+      );
+    } finally {
+      finishContactMutation();
+    }
+  };
+
+  const addCraving = async (label: string): Promise<Craving> => {
+    beginCravingMutation();
+    try {
+      const created = await createCraving(label);
+      setCravings((current) => [...current, created]);
+      setCravingsStatus(`${created.label} added.`);
+      return created;
+    } catch {
+      throw new Error("We couldn’t add that craving. Try again.");
+    } finally {
+      finishCravingMutation();
+    }
+  };
+
+  const deleteCraving = async (craving: Craving): Promise<void> => {
+    beginCravingMutation();
+    try {
+      await removeCraving(craving.id);
+      setCravings((current) =>
+        current.filter(({ id }) => id !== craving.id),
+      );
+      setCravingsStatus(`${craving.label} removed.`);
+    } catch {
+      throw new Error("We couldn’t remove that craving. Try again.");
+    } finally {
+      finishCravingMutation();
+    }
+  };
+
+  const saveFoodRules = async (input: FoodRulesSaveInput): Promise<void> => {
+    try {
+      await saveProfile(input);
+      setProfile((current) => (current ? { ...current, ...input } : current));
+    } catch {
+      throw new Error("We couldn’t save your food rules. Try again.");
+    }
+  };
 
   const updateProfile = <Key extends keyof Profile>(
     key: Key,
@@ -94,9 +293,9 @@ export default function ProfileScreen() {
 
         <ProfileFields profile={profile} update={updateProfile} />
         <ChoiceSection
-          options={motivatorOptions}
+          options={MOTIVATION_OPTIONS}
           selected={profile.motivators}
-          title="What motivates you"
+          title={MOTIVATION_PROMPT}
           update={(value) => updateProfile("motivators", value)}
         />
         <ChoiceSection
@@ -105,10 +304,40 @@ export default function ProfileScreen() {
           title="Coach style"
           update={(value) => updateProfile("coach_style", value)}
         />
+        <YourPeopleSection
+          contacts={contacts}
+          loading={contactsLoading}
+          loadError={contactsError}
+          modalVisible={peopleModalVisible}
+          onCreate={createContact}
+          onModalVisibleChange={setPeopleModalVisible}
+          onRemove={removeContact}
+          onRetry={() => void loadContacts()}
+          status={contactsStatus}
+        />
+        <FoodRulesSection
+          allergens={profile.allergens}
+          dietFlags={profile.diet_flags}
+          onSave={saveFoodRules}
+        />
+        <UsualCravingsSection
+          cravings={cravings}
+          loading={cravingsLoading}
+          loadError={cravingsError}
+          onCreate={addCraving}
+          onRemove={deleteCraving}
+          onRetry={() => void loadCravings()}
+          status={cravingsStatus}
+        />
         <Button
           disabled={busy}
           label={busy ? "Saving…" : "Save profile"}
           onPress={async () => {
+            if (!isMotivationOption(profile.motivators)) {
+              setError("Choose how you want to be motivated.");
+              return;
+            }
+
             setBusy(true);
             setError(null);
             try {

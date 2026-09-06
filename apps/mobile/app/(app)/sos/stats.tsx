@@ -13,6 +13,7 @@ import {
 import { STATS } from "../../../src/content/stats";
 import { logSosEvent } from "../../../src/data/sos";
 import { explainError } from "../../../src/lib/errors";
+import { SOS_PATH } from "../../../src/navigation/tabs";
 
 export default function StatsScreen() {
   const router = useRouter();
@@ -60,7 +61,7 @@ export default function StatsScreen() {
             if (router.canGoBack()) {
               router.back();
             } else {
-              router.replace("/(app)/sos");
+              router.replace(SOS_PATH);
             }
           } catch (caughtError) {
             setError(explainError(caughtError));

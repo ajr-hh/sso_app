@@ -2,6 +2,11 @@ import type { User } from "@supabase/supabase-js";
 
 import { getSupabase } from "../lib/supabase";
 import { isRailId, type RailId } from "../lib/domain";
+import {
+  DIET_FLAGS,
+  normalizeAllergens,
+  type DietFlag,
+} from "../presentation/foodRules";
 import type { Profile } from "../types";
 
 async function requireUser(): Promise<User> {
@@ -23,14 +28,14 @@ export async function fetchProfile(): Promise<Profile> {
   const { data, error } = await getSupabase()
     .from("profiles")
     .select(
-      "id, display_name, age, phone, why_matters, motivators, coach_style, rail_order",
+      "id, display_name, age, phone, why_matters, motivators, coach_style, rail_order, food_rules_set, diet_flags, allergens",
     )
     .eq("id", user.id)
     .eq("deleted", false)
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error("Something went wrong.");
   }
 
   const railOrder: RailId[] = [];
@@ -44,6 +49,14 @@ export async function fetchProfile(): Promise<Profile> {
     }
   }
 
+  const knownDietFlags = new Set<string>(DIET_FLAGS);
+  const dietFlags = Array.isArray(data.diet_flags)
+    ? data.diet_flags.filter(
+        (flag: unknown): flag is DietFlag =>
+          typeof flag === "string" && knownDietFlags.has(flag),
+      )
+    : [];
+
   return {
     id: data.id,
     email: user.email ?? null,
@@ -54,6 +67,16 @@ export async function fetchProfile(): Promise<Profile> {
     motivators: data.motivators,
     coach_style: data.coach_style === "elena" ? "elena" : "marcus",
     rail_order: railOrder,
+    food_rules_set: data.food_rules_set ?? false,
+    diet_flags: dietFlags,
+    allergens: normalizeAllergens(
+      Array.isArray(data.allergens)
+        ? data.allergens.filter(
+            (allergen: unknown): allergen is string =>
+              typeof allergen === "string",
+          )
+        : [],
+    ),
   };
 }
 
@@ -81,6 +104,6 @@ export async function saveProfile(
     .eq("deleted", false);
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error("Something went wrong.");
   }
 }

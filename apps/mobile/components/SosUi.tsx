@@ -18,6 +18,7 @@ import { BackControl } from "./BackControl";
 import { MaterialSymbol } from "./MaterialSymbol";
 import type { SosPath } from "../src/data/sos";
 import type { RailId, RailOption } from "../src/lib/domain";
+import { SOS_PATH } from "../src/navigation/tabs";
 import {
   getMoveBoundaryAnnouncement,
   getMoveControlHint,
@@ -34,13 +35,13 @@ import {
 import { colors } from "../src/theme/colors";
 
 const RAIL_DESCRIPTIONS: Readonly<Record<RailId, string>> = {
-  why: "Reconnect with the reason you started.",
-  hard_truths: "Remember what you do not want to repeat.",
-  stats: "Use the facts to steady your next choice.",
-  rewards: "See the progress you have already earned.",
-  food: "Find a better option for this craving.",
-  messages: "Hear the voice you chose for hard moments.",
-  call: "Call someone safe who can stay with you through this moment.",
+  why: "Your goals and reasons, front and center.",
+  hard_truths: "No cheerleading. Your own stakes, stated plainly.",
+  stats: "What research says, plainly stated.",
+  rewards: "See how close you are to your next reward.",
+  food: "Swap suggestions for your usual slip-up foods.",
+  messages: "A short message from your coach style of choice.",
+  call: "A live call from a coach or a loved one.",
 };
 
 const RAIL_ROUTES = {
@@ -76,7 +77,7 @@ export function SosScreen({
             if (router.canGoBack()) {
               router.back();
             } else {
-              router.replace("/(app)/sos");
+              router.replace(SOS_PATH);
             }
           }}
         />
@@ -101,11 +102,15 @@ export function SosButton({
   disabled = false,
   label,
   onPress,
+  size = "regular",
 }: {
   disabled?: boolean;
   label: string;
   onPress: () => void;
+  size?: "regular" | "large";
 }) {
+  const large = size === "large";
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -113,11 +118,14 @@ export function SosButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
+        large && styles.buttonLarge,
         disabled && styles.disabled,
         pressed && styles.pressed,
       ]}
     >
-      <Text style={styles.buttonText}>{label}</Text>
+      <Text style={[styles.buttonText, large && styles.buttonTextLarge]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -202,36 +210,6 @@ export function RailList({
 
   return (
     <View style={styles.railList}>
-      <View style={styles.reorderHeader}>
-        {/* Mounted permanently so Android reads each new status from the same
-            live region instead of missing a region that just appeared. */}
-        <View
-          accessibilityLiveRegion={
-            Platform.OS === "android" ? "polite" : "none"
-          }
-          role="status"
-          style={styles.statusRegion}
-        >
-          {status ? <Text style={styles.statusText}>{status}</Text> : null}
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: saving, expanded: reordering }}
-          disabled={saving}
-          onPress={toggleReordering}
-          style={({ pressed }) => [
-            styles.reorderToggle,
-            saving && styles.disabled,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text style={styles.reorderToggleText}>
-            {reordering
-              ? "Done reordering support options"
-              : "Reorder support options"}
-          </Text>
-        </Pressable>
-      </View>
       {rails.map((rail, index) => (
         <View key={rail.id} style={styles.railRow}>
           <Pressable
@@ -288,6 +266,38 @@ export function RailList({
           ) : null}
         </View>
       ))}
+      {/* The reorder control sits under the last option so the support choices
+          are the first thing on the list. */}
+      <View style={styles.reorderFooter}>
+        {/* Mounted permanently so Android reads each new status from the same
+            live region instead of missing a region that just appeared. */}
+        <View
+          accessibilityLiveRegion={
+            Platform.OS === "android" ? "polite" : "none"
+          }
+          role="status"
+          style={styles.statusRegion}
+        >
+          {status ? <Text style={styles.statusText}>{status}</Text> : null}
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: saving, expanded: reordering }}
+          disabled={saving}
+          onPress={toggleReordering}
+          style={({ pressed }) => [
+            styles.reorderToggle,
+            saving && styles.disabled,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.reorderToggleText}>
+            {reordering
+              ? "Done reordering support options"
+              : "Reorder support options"}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -357,7 +367,7 @@ const styles = StyleSheet.create({
   },
   heading: { gap: 6 },
   eyebrow: {
-    color: colors.alert,
+    color: colors.ember,
     fontSize: 13,
     fontWeight: "800",
     letterSpacing: 1.5,
@@ -378,7 +388,9 @@ const styles = StyleSheet.create({
     minHeight: 50,
     paddingHorizontal: 18,
   },
+  buttonLarge: { borderRadius: 16, minHeight: 64, paddingHorizontal: 24 },
   buttonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  buttonTextLarge: { fontSize: 19 },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.72 },
   railList: { gap: 10 },
@@ -403,11 +415,12 @@ const styles = StyleSheet.create({
   railCopy: { flex: 1, gap: 4 },
   railTitle: { color: colors.ink, fontSize: 19, fontWeight: "800" },
   railBody: { color: colors.body, fontSize: 14, lineHeight: 19 },
-  reorderHeader: {
+  reorderFooter: {
     alignItems: "center",
     flexDirection: "row",
     gap: 8,
     justifyContent: "space-between",
+    paddingTop: 2,
   },
   statusRegion: { flex: 1 },
   statusText: { color: colors.ink, fontSize: 14, fontWeight: "700" },
