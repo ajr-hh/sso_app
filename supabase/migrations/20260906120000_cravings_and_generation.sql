@@ -116,7 +116,16 @@ drop policy if exists "Members insert their active craving swaps"
 on public.craving_swaps;
 create policy "Members insert their active craving swaps"
 on public.craving_swaps for insert to authenticated
-with check ((select auth.uid()) = user_id and deleted = false);
+with check (
+  (select auth.uid()) = user_id
+  and deleted = false
+  and exists (
+    select 1
+    from public.cravings
+    where id = craving_id
+      and user_id = (select auth.uid())
+  )
+);
 
 drop policy if exists "Members update their craving swaps"
 on public.craving_swaps;

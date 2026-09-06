@@ -19,12 +19,16 @@ const migration = readFileSync(
 const normalizedMigration = migration.replace(/\s+/g, " ");
 
 describe("cravings and generation migration", () => {
-  test("adds profile food-rule columns", () => {
+  test("adds profile food-rule columns with non-null empty defaults", () => {
     expect(normalizedMigration).toContain(
       "food_rules_set boolean not null default false",
     );
-    expect(normalizedMigration).toContain("diet_flags text[]");
-    expect(normalizedMigration).toContain("allergens text[]");
+    expect(normalizedMigration).toContain(
+      "diet_flags text[] not null default '{}'",
+    );
+    expect(normalizedMigration).toContain(
+      "allergens text[] not null default '{}'",
+    );
   });
 
   test("creates owner-scoped tables", () => {
@@ -98,6 +102,37 @@ describe("cravings and generation migration", () => {
     );
   });
 
+  test("lets owners select soft-deleted craving swaps so removal can return ids", () => {
+    expect(normalizedMigration).toContain(
+      'create policy "Members select their craving swaps" ' +
+        "on public.craving_swaps for select to authenticated " +
+        "using ((select auth.uid()) = user_id);",
+    );
+    expect(normalizedMigration).not.toContain(
+      'create policy "Members select their craving swaps" ' +
+        "on public.craving_swaps for select to authenticated " +
+        "using ((select auth.uid()) = user_id and deleted = false);",
+    );
+  });
+
+  test("requires craving ownership before inserting craving swaps", () => {
+    expect(normalizedMigration).toContain(
+      'create policy "Members insert their active craving swaps" ' +
+        "on public.craving_swaps for insert to authenticated with check ( " +
+        "(select auth.uid()) = user_id and deleted = false and exists ( " +
+        "select 1 from public.cravings where id = craving_id " +
+        "and user_id = (select auth.uid()) ) );",
+    );
+  });
+
+  test("requires pending status when inserting generation jobs", () => {
+    expect(normalizedMigration).toContain(
+      'create policy "Members insert their pending generation jobs" ' +
+        "on public.generation_jobs for insert to authenticated with check ( " +
+        "(select auth.uid()) = user_id and status = 'pending' );",
+    );
+  });
+
   test("revokes physical delete and generation job updates", () => {
     expect(normalizedMigration).toContain(
       "revoke delete on table public.cravings, public.craving_swaps, public.generation_jobs",
@@ -114,6 +149,51 @@ describe("cravings and generation migration", () => {
     );
     expect(normalizedMigration).toContain(
       "grant update ( display_name, age, phone, why_matters, motivators, coach_style, rail_order, food_rules_set, diet_flags, allergens )",
+    );
+  });
+
+  test("revokes broad access and grants only approved columns on cravings", () => {
+    expect(normalizedMigration).toContain(
+      "revoke all on table public.cravings from anon, public, authenticated;",
+    );
+    expect(normalizedMigration).toContain(
+      "grant select on table public.cravings to authenticated;",
+    );
+    expect(normalizedMigration).toContain(
+      "grant insert (user_id, label, sort_order) on table public.cravings to authenticated;",
+    );
+    expect(normalizedMigration).toContain(
+      "grant update (label, sort_order, deleted, deleted_at) on table public.cravings to authenticated;",
+    );
+  });
+
+  test("revokes broad access and grants only approved columns on craving swaps", () => {
+    expect(normalizedMigration).toContain(
+      "revoke all on table public.craving_swaps from anon, public, authenticated;",
+    );
+    expect(normalizedMigration).toContain(
+      "grant select on table public.craving_swaps to authenticated;",
+    );
+    expect(normalizedMigration).toContain(
+      "grant insert (user_id, craving_id, label, favorited, source, rule_tags) on table public.craving_swaps to authenticated;",
+    );
+    expect(normalizedMigration).toContain(
+      "grant update (favorited, deleted, deleted_at) on table public.craving_swaps to authenticated;",
+    );
+  });
+
+  test("revokes broad access and grants only select and pending insert on generation jobs", () => {
+    expect(normalizedMigration).toContain(
+      "revoke all on table public.generation_jobs from anon, public, authenticated;",
+    );
+    expect(normalizedMigration).toContain(
+      "grant select on table public.generation_jobs to authenticated;",
+    );
+    expect(normalizedMigration).toContain(
+      "grant insert (user_id, kind, status, input) on table public.generation_jobs to authenticated;",
+    );
+    expect(normalizedMigration).not.toContain(
+      "grant update on table public.generation_jobs",
     );
   });
 
