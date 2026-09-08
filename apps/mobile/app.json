@@ -1,14 +1,26 @@
 {
   "expo": {
     "name": "Humanaut SOS",
-    "slug": "humanaut-sos",
+    "slug": "hh-sos-app",
     "scheme": "humanaut-sos",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.humanauthealth.hhsosapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,7 +37,29 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-image-picker"
-    ]
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Humanaut SOS accesses your photos so you can attach one to an alert.",
+          "cameraPermission": "Humanaut SOS uses the camera so you can attach a photo to an alert."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FF7248",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2d9b1827-84e4-4e46-b89a-da395d0eb1ec"
+      }
+    },
+    "owner": "humanauthealth"
   }
 }
