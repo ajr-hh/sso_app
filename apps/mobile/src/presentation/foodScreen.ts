@@ -1,9 +1,27 @@
 import type { CravingSwap } from "../data/cravingSwaps";
 import type { Craving } from "../data/cravings";
+import { MIN_USUAL_CRAVINGS } from "./cravings";
 import { filterSwapsByRules, type FoodRules } from "./foodRules";
 import type { ResolveSwapView, SwapRow } from "./swaps";
 
 export type FoodScreenMode = "needs_rules" | "empty_cravings" | "ready";
+
+export const PROFILE_PATH = "/(app)/(tabs)/profile";
+export const PROFILE_FOOD_RULES_SECTION = "food-rules";
+
+export function getProfileFoodRulesHref() {
+  return {
+    pathname: PROFILE_PATH,
+    params: { section: PROFILE_FOOD_RULES_SECTION },
+  } as const;
+}
+
+export function isProfileFoodRulesSection(
+  section: string | string[] | undefined,
+): boolean {
+  const value = Array.isArray(section) ? section[0] : section;
+  return value === PROFILE_FOOD_RULES_SECTION;
+}
 
 export const FOOD_SCREEN_COPY = {
   title: "What are you craving?",
@@ -18,11 +36,16 @@ export const FOOD_SCREEN_COPY = {
   ingredientNote: "Check ingredients and labels for your allergies.",
   needsRulesTitle: "Set your food rules first",
   needsRulesBody:
-    "Tell us your allergies and diet in Profile so every swap here is one you can actually eat.",
-  needsRulesButton: "Set food rules in Profile",
-  emptyCravingsTitle: "Add a craving to start",
+    "Tell us your allergies and diet so every swap here is one you can actually eat.",
+  needsRulesButton: "Set food rules",
+  settingsLabel: "Allergies and cravings",
+  settingsTitle: "Allergies and cravings",
+  emptyCravingsTitle: "Pick your top 3 cravings",
   emptyCravingsBody:
-    "Name a food you often want to swap and its ideas show up right here.",
+    "Start with the foods you slip on most. Tap an idea or add your own.",
+  emptyCravingsIdeas: "Ideas to start",
+  emptyCravingsProgress: (remaining: number) =>
+    remaining === 1 ? "1 more to go" : `${remaining} more to go`,
   addCraving: "Add a craving",
   customSwapLabel: "Your own swap",
   customSwapButton: "Save my swap",
@@ -38,6 +61,8 @@ export const FOOD_SCREEN_ERRORS = {
   saveGenerated: "We couldn’t save those swap ideas. Try again.",
   saveCustom: "We couldn’t save that swap. Try again.",
   addCraving: "We couldn’t add that craving. Try again.",
+  removeCraving: "We couldn’t remove that craving. Try again.",
+  saveRules: "We couldn’t save your food rules. Try again.",
 } as const;
 
 export function getFoodScreenMode(input: {
@@ -47,7 +72,9 @@ export function getFoodScreenMode(input: {
   if (!input.foodRulesSet) {
     return "needs_rules";
   }
-  return input.cravingCount === 0 ? "empty_cravings" : "ready";
+  return input.cravingCount < MIN_USUAL_CRAVINGS
+    ? "empty_cravings"
+    : "ready";
 }
 
 /**

@@ -36,6 +36,17 @@ function row(overrides: Partial<SwapRow> = {}): SwapRow {
   };
 }
 
+describe("FOOD_SCREEN_COPY settings", () => {
+  test("keeps food rules on this screen instead of sending people to Profile", () => {
+    expect(FOOD_SCREEN_COPY.needsRulesButton).toBe("Set food rules");
+    expect(FOOD_SCREEN_COPY.needsRulesBody).toBe(
+      "Tell us your allergies and diet so every swap here is one you can actually eat.",
+    );
+    expect(FOOD_SCREEN_COPY.settingsLabel).toBe("Allergies and cravings");
+    expect(FOOD_SCREEN_COPY.settingsTitle).toBe("Allergies and cravings");
+  });
+});
+
 describe("getFoodScreenMode", () => {
   test("blocks personalization until food rules are set", () => {
     expect(getFoodScreenMode({ foodRulesSet: false, cravingCount: 2 })).toBe(
@@ -49,8 +60,17 @@ describe("getFoodScreenMode", () => {
     );
   });
 
-  test("ready once rules are set and a craving exists", () => {
+  test("keeps setup until the top 3 cravings are added", () => {
     expect(getFoodScreenMode({ foodRulesSet: true, cravingCount: 1 })).toBe(
+      "empty_cravings",
+    );
+    expect(getFoodScreenMode({ foodRulesSet: true, cravingCount: 2 })).toBe(
+      "empty_cravings",
+    );
+  });
+
+  test("ready once rules are set and three cravings exist", () => {
+    expect(getFoodScreenMode({ foodRulesSet: true, cravingCount: 3 })).toBe(
       "ready",
     );
   });

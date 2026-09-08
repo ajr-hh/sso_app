@@ -83,13 +83,15 @@ describe("validateReinforcementPhoto", () => {
     }
   });
 
-  test("allows an empty Remember Your Why caption", () => {
-    expect(
-      validateReinforcementPhoto({
-        mode: "remember_why",
-        caption: "",
-      }).ok,
-    ).toBe(true);
+  test("requires a Remember Your Why caption", () => {
+    const result = validateReinforcementPhoto({
+      mode: "remember_why",
+      caption: "",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/caption/i);
+    }
   });
 });
 

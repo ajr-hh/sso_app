@@ -2,7 +2,13 @@ import { ImageManipulator } from "expo-image-manipulator";
 
 import { getSupabase } from "../lib/supabase";
 import { logSosEvent } from "./sos";
-import { fetchPhotos, saveReinforcementPhoto } from "./photos";
+import {
+  fetchPhotos,
+  removeReinforcementPhoto,
+  saveReinforcementPhoto,
+  setPhotoFavorited,
+  updateReinforcementPhotoCaption,
+} from "./photos";
 
 jest.mock("expo-image-manipulator", () => ({
   ImageManipulator: { manipulate: jest.fn() },
@@ -58,7 +64,8 @@ describe("reinforcement photo data", () => {
       resize,
     } as never);
     mockedFetch.mockResolvedValue({
-      blob: jest.fn().mockResolvedValue({ size: 1234, type: "image/jpeg" }),
+      arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
+      blob: jest.fn().mockResolvedValue({ size: 1234, type: "text/plain" }),
       ok: true,
     });
 
@@ -92,7 +99,7 @@ describe("reinforcement photo data", () => {
     });
     expect(upload).toHaveBeenCalledWith(
       expect.stringMatching(/^user-1\/[0-9a-f-]+\.jpg$/),
-      { size: 1234, type: "image/jpeg" },
+      expect.any(ArrayBuffer),
       { contentType: "image/jpeg", upsert: false },
     );
     expect(insert).toHaveBeenCalledWith({
@@ -123,7 +130,7 @@ describe("reinforcement photo data", () => {
       resize: jest.fn(),
     } as never);
     mockedFetch.mockResolvedValue({
-      blob: jest.fn().mockResolvedValue({ size: 900, type: "image/jpeg" }),
+      arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
       ok: true,
     });
 
@@ -160,11 +167,55 @@ describe("reinforcement photo data", () => {
     expect(mockedLogSosEvent).not.toHaveBeenCalled();
   });
 
+  test("explains an unsupported mime type as a photo save failure", async () => {
+    mockedManipulate.mockReturnValue({
+      renderAsync: jest.fn().mockResolvedValue({
+        saveAsync: jest.fn().mockResolvedValue({
+          height: 800,
+          uri: "file:///compressed.jpg",
+          width: 1200,
+        }),
+      }),
+      resize: jest.fn(),
+    } as never);
+    mockedFetch.mockResolvedValue({
+      arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(8)),
+      ok: true,
+    });
+    mockedGetSupabase.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: jest.fn(),
+      storage: {
+        from: jest.fn().mockReturnValue({
+          upload: jest.fn().mockResolvedValue({
+            error: { message: "mime type text/plain is not supported" },
+          }),
+        }),
+      },
+    } as never);
+
+    await expect(
+      saveReinforcementPhoto({
+        caption: "My reminder",
+        mode: "remember_why",
+        path: "off_the_rails",
+        uri: "file:///draft.jpg",
+        width: 1200,
+      }),
+    ).rejects.toThrow("We couldn’t save that photo. Try another image.");
+  });
+
   test("fetches photos by mode with one-hour signed URLs", async () => {
     const rows = [
       {
         caption: "Keep going",
         created_at: "2026-09-04T10:00:00.000Z",
+        favorited: false,
         id: "photo-1",
         mode: "remember_why",
         storage_key: "user-1/photo-1.jpg",
@@ -172,8 +223,9 @@ describe("reinforcement photo data", () => {
         user_id: "user-1",
       },
     ];
-    const order = jest.fn().mockResolvedValue({ data: rows, error: null });
-    const activeFilter = jest.fn().mockReturnValue({ order });
+    const createdOrder = jest.fn().mockResolvedValue({ data: rows, error: null });
+    const favoriteOrder = jest.fn().mockReturnValue({ order: createdOrder });
+    const activeFilter = jest.fn().mockReturnValue({ order: favoriteOrder });
     const eq = jest.fn().mockReturnValue({ eq: activeFilter });
     const select = jest.fn().mockReturnValue({ eq });
     const createSignedUrl = jest.fn().mockResolvedValue({
@@ -190,9 +242,101 @@ describe("reinforcement photo data", () => {
     await expect(fetchPhotos("remember_why")).resolves.toEqual([
       { ...rows[0], signed_url: "https://example.test/photo-1" },
     ]);
+    expect(select).toHaveBeenCalledWith(
+      "id, user_id, storage_key, caption, tag, mode, favorited, created_at",
+    );
     expect(eq).toHaveBeenCalledWith("mode", "remember_why");
     expect(activeFilter).toHaveBeenCalledWith("deleted", false);
-    expect(order).toHaveBeenCalledWith("created_at", { ascending: false });
+    expect(favoriteOrder).toHaveBeenCalledWith("favorited", {
+      ascending: false,
+    });
+    expect(createdOrder).toHaveBeenCalledWith("created_at", {
+      ascending: false,
+    });
     expect(createSignedUrl).toHaveBeenCalledWith("user-1/photo-1.jpg", 3600);
+  });
+
+  test("updates only this member's active photo caption", async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: { id: "photo-1" },
+      error: null,
+    });
+    const deletedFilter = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnValue({ maybeSingle }),
+    });
+    const userFilter = jest.fn().mockReturnValue({ eq: deletedFilter });
+    const idFilter = jest.fn().mockReturnValue({ eq: userFilter });
+    const update = jest.fn().mockReturnValue({ eq: idFilter });
+    mockedGetSupabase.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: jest.fn().mockReturnValue({ update }),
+    } as never);
+
+    await updateReinforcementPhotoCaption("photo-1", "  Finished it.  ");
+    expect(update).toHaveBeenCalledWith({ caption: "Finished it." });
+    expect(idFilter).toHaveBeenCalledWith("id", "photo-1");
+    expect(userFilter).toHaveBeenCalledWith("user_id", "user-1");
+    expect(deletedFilter).toHaveBeenCalledWith("deleted", false);
+  });
+
+  test("soft-deletes only this member's active photo", async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: { id: "photo-1" },
+      error: null,
+    });
+    const deletedFilter = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnValue({ maybeSingle }),
+    });
+    const userFilter = jest.fn().mockReturnValue({ eq: deletedFilter });
+    const idFilter = jest.fn().mockReturnValue({ eq: userFilter });
+    const update = jest.fn().mockReturnValue({ eq: idFilter });
+    mockedGetSupabase.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: jest.fn().mockReturnValue({ update }),
+    } as never);
+
+    await removeReinforcementPhoto("photo-1");
+    expect(update).toHaveBeenCalledWith({
+      deleted: true,
+      deleted_at: expect.any(String),
+    });
+  });
+
+  test("updates favorite only on an active photo owned by this member", async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: { id: "photo-1" },
+      error: null,
+    });
+    const deletedFilter = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnValue({ maybeSingle }),
+    });
+    const userFilter = jest.fn().mockReturnValue({ eq: deletedFilter });
+    const idFilter = jest.fn().mockReturnValue({ eq: userFilter });
+    const update = jest.fn().mockReturnValue({ eq: idFilter });
+    mockedGetSupabase.mockReturnValue({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: { user: { id: "user-1" } },
+          error: null,
+        }),
+      },
+      from: jest.fn().mockReturnValue({ update }),
+    } as never);
+
+    await setPhotoFavorited("photo-1", true);
+    expect(update).toHaveBeenCalledWith({ favorited: true });
+    expect(idFilter).toHaveBeenCalledWith("id", "photo-1");
+    expect(userFilter).toHaveBeenCalledWith("user_id", "user-1");
+    expect(deletedFilter).toHaveBeenCalledWith("deleted", false);
   });
 });

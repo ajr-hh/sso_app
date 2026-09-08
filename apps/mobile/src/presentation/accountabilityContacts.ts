@@ -56,3 +56,37 @@ export function getAccountabilityContactValidationError(
 export function shouldAnnounceContactStatus(platform: string): boolean {
   return platform === "ios";
 }
+
+export const CALL_COPY = {
+  title: "Call someone safe",
+  subtitle: "You do not have to solve this moment alone.",
+  emptyTitle: "Add someone you can reach",
+  emptyBody:
+    "Add a contact so you can call or text them from here when you need a steady person.",
+  addContact: "Add a contact",
+  addAnother: "Add another contact",
+  call: "Call",
+  text: "Text",
+} as const;
+
+export function getRelationshipLabel(value: RelationshipValue): string {
+  return (
+    RELATIONSHIP_OPTIONS.find((option) => option.value === value)?.label ??
+    value
+  );
+}
+
+export function digitsForPhoneHref(phone: string): string {
+  const trimmed = phone.trim();
+  const hasPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "");
+  return hasPlus ? `+${digits}` : digits;
+}
+
+export function phoneHrefForCall(phone: string): string {
+  return `tel:${digitsForPhoneHref(phone)}`;
+}
+
+export function phoneHrefForSms(phone: string): string {
+  return `sms:${digitsForPhoneHref(phone)}`;
+}

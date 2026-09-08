@@ -1,3 +1,4 @@
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +18,7 @@ import {
   FoodRulesSection,
   type FoodRulesSaveInput,
 } from "../../../components/FoodRulesSection";
+import { OtherToolsSection } from "../../../components/OtherToolsSection";
 import { UsualCravingsSection } from "../../../components/UsualCravingsSection";
 import { YourPeopleSection } from "../../../components/YourPeopleSection";
 import {
@@ -34,17 +36,31 @@ import {
 } from "../../../src/data/cravings";
 import { fetchProfile, saveProfile } from "../../../src/data/profile";
 import { explainError } from "../../../src/lib/errors";
+import { signOut } from "../../../src/lib/session";
 import {
+  COACH_IDS,
+  getCoachName,
+  isCoachId,
+} from "../../../src/presentation/coaches";
+import { isProfileFoodRulesSection } from "../../../src/presentation/foodScreen";
+import {
+  applySilentProfileRefresh,
   isMotivationOption,
   MOTIVATION_OPTIONS,
   MOTIVATION_PROMPT,
+  PROFILE_LOG_OUT,
 } from "../../../src/presentation/profile";
 import { colors } from "../../../src/theme/colors";
 import type { Profile } from "../../../src/types";
 
-const coachOptions = ["marcus", "elena"] as const;
+const coachOptions = COACH_IDS;
 
 export default function ProfileScreen() {
+  const router = useRouter();
+  const { section } = useLocalSearchParams<{ section?: string | string[] }>();
+  const scrollRef = useRef<ScrollView>(null);
+  const foodRulesY = useRef<number | null>(null);
+  const pendingFoodRulesFocus = useRef(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [contacts, setContacts] = useState<AccountabilityContact[]>([]);
   const [cravings, setCravings] = useState<Craving[]>([]);
@@ -58,7 +74,10 @@ export default function ProfileScreen() {
   const [contactsStatus, setContactsStatus] = useState<string | null>(null);
   const [cravingsStatus, setCravingsStatus] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [peopleModalVisible, setPeopleModalVisible] = useState(false);
+  const signingOutRef = useRef(false);
+  const dirtyKeysRef = useRef(new Set<string>());
   const contactsRequestRef = useRef(0);
   const contactsMutationRevisionRef = useRef(0);
   const contactsMutationsInFlightRef = useRef(0);
@@ -79,14 +98,16 @@ export default function ProfileScreen() {
     }
   }, []);
 
-  const loadContacts = useCallback(async () => {
+  const loadContacts = useCallback(async (options?: { silent?: boolean }) => {
     const requestId = ++contactsRequestRef.current;
     const mutationRevision = contactsMutationRevisionRef.current;
     const canApply = () =>
       contactsRequestRef.current === requestId &&
       contactsMutationRevisionRef.current === mutationRevision &&
       contactsMutationsInFlightRef.current === 0;
-    setContactsLoading(true);
+    if (!options?.silent) {
+      setContactsLoading(true);
+    }
     // A load that can no longer apply leaves the previous error in place so the
     // retry affordance survives an overlapping mutation.
     try {
@@ -106,14 +127,16 @@ export default function ProfileScreen() {
     }
   }, []);
 
-  const loadCravings = useCallback(async () => {
+  const loadCravings = useCallback(async (options?: { silent?: boolean }) => {
     const requestId = ++cravingsRequestRef.current;
     const mutationRevision = cravingsMutationRevisionRef.current;
     const canApply = () =>
       cravingsRequestRef.current === requestId &&
       cravingsMutationRevisionRef.current === mutationRevision &&
       cravingsMutationsInFlightRef.current === 0;
-    setCravingsLoading(true);
+    if (!options?.silent) {
+      setCravingsLoading(true);
+    }
     try {
       const loadedCravings = await fetchCravings();
       if (canApply()) {
@@ -134,6 +157,47 @@ export default function ProfileScreen() {
     void loadContacts();
     void loadCravings();
   }, [load, loadContacts, loadCravings]);
+
+  const refreshFoodSettings = useCallback(async () => {
+    try {
+      const incoming = await fetchProfile();
+      setProfile((current) =>
+        current
+          ? applySilentProfileRefresh(current, incoming, dirtyKeysRef.current)
+          : incoming,
+      );
+    } catch {
+      // Keep the tiles on screen; a failed refresh should not blank Profile.
+    }
+    void loadContacts({ silent: true });
+    void loadCravings({ silent: true });
+  }, [loadContacts, loadCravings]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshFoodSettings();
+    }, [refreshFoodSettings]),
+  );
+
+  useEffect(() => {
+    if (isProfileFoodRulesSection(section)) {
+      pendingFoodRulesFocus.current = true;
+    }
+  }, [section]);
+
+  const scrollToFoodRulesIfNeeded = useCallback(() => {
+    if (
+      !pendingFoodRulesFocus.current ||
+      foodRulesY.current === null ||
+      !scrollRef.current
+    ) {
+      return;
+    }
+
+    scrollRef.current.scrollTo({ y: foodRulesY.current, animated: false });
+    pendingFoodRulesFocus.current = false;
+    router.setParams({ section: undefined });
+  }, [router]);
 
   const beginContactMutation = () => {
     contactsMutationsInFlightRef.current += 1;
@@ -248,10 +312,27 @@ export default function ProfileScreen() {
     key: Key,
     value: Profile[Key],
   ) => {
+    dirtyKeysRef.current.add(key);
     setSaved(false);
     setProfile((current) =>
       current ? { ...current, [key]: value } : current,
     );
+  };
+
+  const logOut = async () => {
+    if (signingOutRef.current) {
+      return;
+    }
+    signingOutRef.current = true;
+    setError(null);
+    setSigningOut(true);
+    try {
+      await signOut();
+    } catch (caughtError) {
+      signingOutRef.current = false;
+      setError(explainError(caughtError));
+      setSigningOut(false);
+    }
   };
 
   if (loading) {
@@ -265,9 +346,17 @@ export default function ProfileScreen() {
 
   if (!profile) {
     return (
-      <View style={styles.centered}>
-        {error ? <ErrorBanner message={error} /> : null}
-        <Button label="Try again" onPress={load} />
+      <View style={styles.flex}>
+        <View style={styles.errorHeader}>
+          <View style={styles.headerRow}>
+            <Text style={styles.eyebrow}>YOUR SUPPORT PLAN</Text>
+            <LogOutControl onPress={logOut} signingOut={signingOut} />
+          </View>
+        </View>
+        <View style={styles.centered}>
+          {error ? <ErrorBanner message={error} /> : null}
+          <Button label="Try again" onPress={load} />
+        </View>
       </View>
     );
   }
@@ -280,8 +369,13 @@ export default function ProfileScreen() {
       <ScrollView
         contentContainerStyle={styles.screen}
         keyboardShouldPersistTaps="handled"
+        onContentSizeChange={scrollToFoodRulesIfNeeded}
+        ref={scrollRef}
       >
-        <Text style={styles.eyebrow}>YOUR SUPPORT PLAN</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.eyebrow}>YOUR SUPPORT PLAN</Text>
+          <LogOutControl onPress={logOut} signingOut={signingOut} />
+        </View>
         <Text style={styles.title}>Profile</Text>
         <Text style={styles.body}>Personalize the support you get.</Text>
         {error ? <ErrorBanner message={error} /> : null}
@@ -302,7 +396,10 @@ export default function ProfileScreen() {
           options={coachOptions}
           selected={profile.coach_style}
           title="Coach style"
-          update={(value) => updateProfile("coach_style", value)}
+          update={(value) => {
+            updateProfile("coach_style", value);
+            updateProfile("coach_style_set", true);
+          }}
         />
         <YourPeopleSection
           contacts={contacts}
@@ -315,11 +412,19 @@ export default function ProfileScreen() {
           onRetry={() => void loadContacts()}
           status={contactsStatus}
         />
-        <FoodRulesSection
-          allergens={profile.allergens}
-          dietFlags={profile.diet_flags}
-          onSave={saveFoodRules}
-        />
+        <View
+          onLayout={(event) => {
+            foodRulesY.current = event.nativeEvent.layout.y;
+            scrollToFoodRulesIfNeeded();
+          }}
+          testID="profile-food-rules"
+        >
+          <FoodRulesSection
+            allergens={profile.allergens}
+            dietFlags={profile.diet_flags}
+            onSave={saveFoodRules}
+          />
+        </View>
         <UsualCravingsSection
           cravings={cravings}
           loading={cravingsLoading}
@@ -329,6 +434,7 @@ export default function ProfileScreen() {
           onRetry={() => void loadCravings()}
           status={cravingsStatus}
         />
+        <OtherToolsSection />
         <Button
           disabled={busy}
           label={busy ? "Saving…" : "Save profile"}
@@ -348,7 +454,9 @@ export default function ProfileScreen() {
                 why_matters: profile.why_matters?.trim() || null,
                 motivators: profile.motivators,
                 coach_style: profile.coach_style,
+                coach_style_set: profile.coach_style_set,
               });
+              dirtyKeysRef.current.clear();
               setSaved(true);
               Keyboard.dismiss();
             } catch (caughtError) {
@@ -460,11 +568,36 @@ function ChoiceSection<Value extends string>({ options, selected, title, update 
       <View accessibilityLabel={title} accessibilityRole="radiogroup" style={styles.options}>
         {options.map((option) => (
           <Pressable accessibilityRole="radio" accessibilityState={{ selected: selected === option }} key={option} onPress={() => update(option)} style={[styles.choice, selected === option && styles.choiceSelected]}>
-            <Text style={styles.choiceText}>{option === "marcus" ? "Marcus" : option === "elena" ? "Elena" : option}</Text>
+            <Text style={styles.choiceText}>
+              {isCoachId(option) ? getCoachName(option) : option}
+            </Text>
           </Pressable>
         ))}
       </View>
     </Section>
+  );
+}
+
+function LogOutControl({
+  onPress,
+  signingOut,
+}: {
+  onPress: () => Promise<void>;
+  signingOut: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ busy: signingOut, disabled: signingOut }}
+      disabled={signingOut}
+      hitSlop={8}
+      onPress={() => {
+        void onPress();
+      }}
+      style={[styles.logOut, signingOut && styles.disabled]}
+    >
+      <Text style={styles.logOutText}>{PROFILE_LOG_OUT}</Text>
+    </Pressable>
   );
 }
 
@@ -480,7 +613,25 @@ const styles = StyleSheet.create({
   flex: { backgroundColor: colors.canvas, flex: 1 },
   screen: { backgroundColor: colors.canvas, gap: 16, padding: 24, paddingBottom: 96 },
   centered: { alignItems: "center", backgroundColor: colors.canvas, flex: 1, gap: 16, justifyContent: "center", padding: 24 },
-  eyebrow: { color: colors.ember, fontSize: 13, fontWeight: "800", letterSpacing: 1.5 },
+  errorHeader: { paddingHorizontal: 24, paddingTop: 24 },
+  headerRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  eyebrow: { color: colors.ember, flexShrink: 1, fontSize: 13, fontWeight: "800", letterSpacing: 1.5 },
+  logOut: {
+    alignItems: "center",
+    backgroundColor: "transparent",
+    borderColor: colors.ink,
+    borderRadius: 8,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 32,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  logOutText: { color: colors.ink, fontSize: 13, fontWeight: "800" },
   title: { color: colors.ink, fontSize: 36, fontWeight: "800" },
   body: { color: colors.body, fontSize: 16 },
   saved: { color: "#27633E", fontSize: 15, fontWeight: "700" },

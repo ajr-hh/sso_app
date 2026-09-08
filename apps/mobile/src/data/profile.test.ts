@@ -50,7 +50,7 @@ describe("profile data", () => {
       allergens: ["dairy", "shellfish"],
     });
     expect(select).toHaveBeenCalledWith(
-      "id, display_name, age, phone, why_matters, motivators, coach_style, rail_order, food_rules_set, diet_flags, allergens",
+      "id, display_name, age, phone, why_matters, motivators, coach_style, coach_style_set, rail_order, food_rules_set, diet_flags, allergens",
     );
     expect(idFilter).toHaveBeenCalledWith("id", "user-1");
     expect(activeFilter).toHaveBeenCalledWith("deleted", false);

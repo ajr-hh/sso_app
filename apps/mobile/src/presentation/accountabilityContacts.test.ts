@@ -1,7 +1,11 @@
 import {
+  CALL_COPY,
   CONTACT_FIELD_LIMITS,
   getAccountabilityContactValidationError,
+  getRelationshipLabel,
   normalizeAccountabilityContact,
+  phoneHrefForCall,
+  phoneHrefForSms,
   RELATIONSHIP_OPTIONS,
   shouldAnnounceContactStatus,
 } from "./accountabilityContacts";
@@ -65,5 +69,27 @@ describe("accountability contact rules", () => {
     expect(shouldAnnounceContactStatus("ios")).toBe(true);
     expect(shouldAnnounceContactStatus("android")).toBe(false);
     expect(shouldAnnounceContactStatus("web")).toBe(false);
+  });
+
+  test("maps stored relationship values to the labels people see", () => {
+    expect(getRelationshipLabel("friend")).toBe("Friend");
+    expect(getRelationshipLabel("spouse")).toBe("Spouse");
+  });
+
+  test("opens the phone app with digits ready to dial", () => {
+    expect(phoneHrefForCall("(555) 123-4567")).toBe("tel:5551234567");
+    expect(phoneHrefForCall("+1 (555) 123-4567")).toBe("tel:+15551234567");
+  });
+
+  test("opens text messages with the same number prefilled", () => {
+    expect(phoneHrefForSms("(555) 123-4567")).toBe("sms:5551234567");
+    expect(phoneHrefForSms("+1 (555) 123-4567")).toBe("sms:+15551234567");
+  });
+
+  test("keeps call-screen copy focused on the people they already added", () => {
+    expect(CALL_COPY.title).toBe("Call someone safe");
+    expect(CALL_COPY.addContact).toBe("Add a contact");
+    expect(CALL_COPY.call).toBe("Call");
+    expect(CALL_COPY.text).toBe("Text");
   });
 });

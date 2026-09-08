@@ -11,8 +11,17 @@ describe("static content", () => {
     expect(FOOD_SWAPS["Ice cream"].length).toBeGreaterThan(0);
   });
 
-  test("COACH_LIBRARY marcus and elena are nonempty", () => {
-    expect(COACH_LIBRARY.marcus.length).toBeGreaterThan(0);
-    expect(COACH_LIBRARY.elena.length).toBeGreaterThan(0);
+  test("COACH_LIBRARY has four coaches and no em dashes", () => {
+    expect(Object.keys(COACH_LIBRARY)).toEqual([
+      "marcus",
+      "elena",
+      "sam",
+      "jordan",
+    ]);
+    for (const messages of Object.values(COACH_LIBRARY)) {
+      expect(messages.length).toBeGreaterThan(0);
+      expect(messages.join(" ")).not.toContain("—");
+      expect(messages.join(" ")).not.toContain("–");
+    }
   });
 });

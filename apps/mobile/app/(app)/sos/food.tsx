@@ -1,4 +1,4 @@
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,
@@ -10,9 +10,13 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ErrorBanner } from "../../../components/ErrorBanner";
+import { FoodSettingsFlyout } from "../../../components/FoodSettingsFlyout";
+import type { FoodRulesSaveInput } from "../../../components/FoodRulesSection";
 import { MaterialSymbol } from "../../../components/MaterialSymbol";
+import { RecipeFlyout } from "../../../components/RecipeFlyout";
 import {
   SosButton,
   SosCard,
@@ -31,16 +35,23 @@ import {
 import {
   createCraving,
   fetchCravings,
+  removeCraving,
   type Craving,
 } from "../../../src/data/cravings";
 import {
   generateFoodSwaps,
   type GeneratedSwap,
 } from "../../../src/data/generate";
-import { fetchProfile } from "../../../src/data/profile";
+import { fetchProfile, saveProfile } from "../../../src/data/profile";
+import { loadSwapRecipe } from "../../../src/data/recipes";
 import { logSosEvent } from "../../../src/data/sos";
 import { explainError } from "../../../src/lib/errors";
-import { getSwapLabelValidationError } from "../../../src/presentation/cravings";
+import {
+  getCravingSetupProgress,
+  getSwapLabelValidationError,
+  getUnusedCravingSuggestions,
+  MIN_USUAL_CRAVINGS,
+} from "../../../src/presentation/cravings";
 import type { FoodRules } from "../../../src/presentation/foodRules";
 import {
   FOOD_SCREEN_COPY,
@@ -53,15 +64,19 @@ import {
   shouldShowIngredientNote,
   toSwapRows,
 } from "../../../src/presentation/foodScreen";
+import {
+  getOpenRecipeLabel,
+  RECIPE_COPY,
+  RECIPE_ERRORS,
+  type SwapRecipe,
+} from "../../../src/presentation/recipes";
 import { resolveSwapView, type SwapRow } from "../../../src/presentation/swaps";
 import { colors } from "../../../src/theme/colors";
 import type { Profile } from "../../../src/types";
 
-const PROFILE_PATH = "/(app)/(tabs)/profile";
-
 export default function FoodScreen() {
   const path = useSosPath();
-  const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [logError, setLogError] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -84,6 +99,15 @@ export default function FoodScreen() {
   const [customError, setCustomError] = useState<string | null>(null);
   const [savingCustom, setSavingCustom] = useState(false);
   const [flyoutVisible, setFlyoutVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [cravingsStatus, setCravingsStatus] = useState<string | null>(null);
+  const [recipeVisible, setRecipeVisible] = useState(false);
+  const [recipeTitle, setRecipeTitle] = useState<string | null>(null);
+  const [recipe, setRecipe] = useState<SwapRecipe | null>(null);
+  const [recipeLoading, setRecipeLoading] = useState(false);
+  const [recipeError, setRecipeError] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addingSuggestion, setAddingSuggestion] = useState<string | null>(null);
 
   const profileRequestRef = useRef(0);
   const cravingsRequestRef = useRef(0);
@@ -93,7 +117,9 @@ export default function FoodScreen() {
   const swapsMutationRevisionRef = useRef(0);
   const swapsMutationsInFlightRef = useRef(0);
   const addTriggerRef = useRef<View>(null);
+  const gearRef = useRef<View>(null);
   const focusRestoredRef = useRef(true);
+  const settingsFocusRestoredRef = useRef(true);
 
   const rules: FoodRules = useMemo(
     () => ({
@@ -229,11 +255,22 @@ export default function FoodScreen() {
   const selectedLabel = selectedCraving?.label ?? null;
 
   useEffect(() => {
-    if (!rules.foodRulesSet || !selectedId || selectedLabel === null) {
+    if (
+      !rules.foodRulesSet ||
+      cravings.length < MIN_USUAL_CRAVINGS ||
+      !selectedId ||
+      selectedLabel === null
+    ) {
       return;
     }
     void loadSwaps(selectedId, selectedLabel);
-  }, [loadSwaps, rules.foodRulesSet, selectedId, selectedLabel]);
+  }, [
+    cravings.length,
+    loadSwaps,
+    rules.foodRulesSet,
+    selectedId,
+    selectedLabel,
+  ]);
 
   const beginCravingMutation = () => {
     cravingsMutationsInFlightRef.current += 1;
@@ -272,6 +309,14 @@ export default function FoodScreen() {
     AccessibilityInfo.setAccessibilityFocus(handle);
   };
 
+  const restoreGearFocus = () => {
+    if (settingsFocusRestoredRef.current) return;
+    const handle = findNodeHandle(gearRef.current);
+    if (handle === null) return;
+    settingsFocusRestoredRef.current = true;
+    AccessibilityInfo.setAccessibilityFocus(handle);
+  };
+
   const markSwapBusy = (id: string, busy: boolean) => {
     setBusySwapIds((current) => {
       const next = new Set(current);
@@ -290,6 +335,8 @@ export default function FoodScreen() {
       const created = await createCraving(label);
       setCravings((current) => [...current, created]);
       setSelectedId(created.id);
+      setCravingsStatus(`${created.label} added.`);
+      setAddError(null);
       setActionError(null);
       setCustomError(null);
       return created;
@@ -299,6 +346,70 @@ export default function FoodScreen() {
       finishCravingMutation();
     }
   };
+
+  const deleteCraving = async (craving: Craving): Promise<void> => {
+    beginCravingMutation();
+    try {
+      await removeCraving(craving.id);
+      setCravings((current) =>
+        current.filter(({ id }) => id !== craving.id),
+      );
+      setCravingsStatus(`${craving.label} removed.`);
+    } catch {
+      throw new Error(FOOD_SCREEN_ERRORS.removeCraving);
+    } finally {
+      finishCravingMutation();
+    }
+  };
+
+  const saveFoodRules = async (input: FoodRulesSaveInput): Promise<void> => {
+    try {
+      await saveProfile(input);
+      setProfile((current) => (current ? { ...current, ...input } : current));
+    } catch {
+      throw new Error(FOOD_SCREEN_ERRORS.saveRules);
+    }
+  };
+
+  const openSettings = () => {
+    settingsFocusRestoredRef.current = false;
+    setSettingsVisible(true);
+  };
+
+  const closeSettings = () => {
+    setSettingsVisible(false);
+  };
+
+  const openRecipe = async (title: string) => {
+    setRecipeTitle(title);
+    setRecipeVisible(true);
+    setRecipeLoading(true);
+    setRecipeError(null);
+    setRecipe(null);
+    try {
+      setRecipe(await loadSwapRecipe(title));
+    } catch (caughtError) {
+      setRecipeError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : RECIPE_ERRORS.load,
+      );
+    } finally {
+      setRecipeLoading(false);
+    }
+  };
+
+  const closeRecipe = () => {
+    setRecipeVisible(false);
+    setRecipeTitle(null);
+    setRecipe(null);
+    setRecipeError(null);
+  };
+
+  useEffect(() => {
+    if (settingsVisible) return;
+    restoreGearFocus();
+  }, [settingsVisible]);
 
   const view = useMemo(
     () =>
@@ -447,15 +558,37 @@ export default function FoodScreen() {
     }
   };
 
+  const addSuggestion = async (label: string) => {
+    if (addingSuggestion) return;
+    setAddingSuggestion(label);
+    setAddError(null);
+    try {
+      await addCraving(label);
+    } catch (caughtError) {
+      setAddError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : FOOD_SCREEN_ERRORS.addCraving,
+      );
+    } finally {
+      setAddingSuggestion(null);
+    }
+  };
+
   const mode = getFoodScreenMode({
     foodRulesSet: rules.foodRulesSet,
     cravingCount: cravings.length,
   });
+  const setupProgress = getCravingSetupProgress(cravings.length);
+  const unusedSuggestions = getUnusedCravingSuggestions(
+    cravings.map(({ label }) => label),
+  );
   const addDisabled = !cravingsLoaded || cravingsError !== null;
   const swapsPending = swapsLoading || loadedCravingId !== selectedId;
   const showPersonalization = !profileLoading && !profileError;
 
   return (
+    <View style={styles.root}>
     <SosScreen
       eyebrow="BETTER CHOICES"
       showBack
@@ -495,9 +628,7 @@ export default function FoodScreen() {
           </Text>
           <SosButton
             label={FOOD_SCREEN_COPY.needsRulesButton}
-            // navigate keeps the existing Profile tab instead of stacking a
-            // second copy of the tab tree over this screen.
-            onPress={() => router.navigate(PROFILE_PATH)}
+            onPress={openSettings}
           />
         </SosCard>
       ) : null}
@@ -532,8 +663,47 @@ export default function FoodScreen() {
               <Text style={sosTextStyles.body}>
                 {FOOD_SCREEN_COPY.emptyCravingsBody}
               </Text>
+              <Text style={sosTextStyles.strong}>
+                {FOOD_SCREEN_COPY.emptyCravingsProgress(setupProgress.remaining)}
+              </Text>
+              {unusedSuggestions.length > 0 ? (
+                <>
+                  <Text style={styles.label}>
+                    {FOOD_SCREEN_COPY.emptyCravingsIdeas}
+                  </Text>
+                  <View
+                    accessibilityLabel={FOOD_SCREEN_COPY.emptyCravingsIdeas}
+                    style={styles.chips}
+                  >
+                    {unusedSuggestions.map((label) => {
+                      const busy = addingSuggestion === label;
+                      return (
+                        <Pressable
+                          accessibilityLabel={`Add ${label}`}
+                          accessibilityRole="button"
+                          accessibilityState={{
+                            busy,
+                            disabled: addDisabled || addingSuggestion !== null,
+                          }}
+                          disabled={addDisabled || addingSuggestion !== null}
+                          key={label}
+                          onPress={() => void addSuggestion(label)}
+                          style={[
+                            styles.chip,
+                            busy && styles.chipSelected,
+                            addDisabled && styles.disabled,
+                          ]}
+                        >
+                          <Text style={styles.chipText}>{label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : null}
             </>
           ) : null}
+          {addError ? <ErrorBanner message={addError} /> : null}
           {cravings.length > 0 ? (
             <View
               accessibilityLabel={FOOD_SCREEN_COPY.cravingsLabel}
@@ -619,25 +789,41 @@ export default function FoodScreen() {
             <>
               {view.rows.map((row) => (
                 <View key={row.id} style={styles.swap}>
-                  <Text style={styles.swapText}>{row.label}</Text>
+                  <View style={styles.swapHeader}>
+                    <Text style={styles.swapText}>{row.label}</Text>
+                    <Pressable
+                      accessibilityLabel={getSwapToggleLabel(
+                        row.label,
+                        row.favorited,
+                      )}
+                      accessibilityRole="button"
+                      accessibilityState={{
+                        busy: busySwapIds.has(row.id),
+                        selected: row.favorited,
+                      }}
+                      disabled={busySwapIds.has(row.id)}
+                      onPress={() => void toggleFavorite(row)}
+                      style={styles.star}
+                    >
+                      <MaterialSymbol
+                        color={row.favorited ? colors.alert : colors.body}
+                        filled={row.favorited}
+                        name="favorite"
+                        size={22}
+                      />
+                    </Pressable>
+                  </View>
                   <Pressable
-                    accessibilityLabel={getSwapToggleLabel(
-                      row.label,
-                      row.favorited,
-                    )}
+                    accessibilityLabel={getOpenRecipeLabel(row.label)}
                     accessibilityRole="button"
-                    accessibilityState={{
-                      busy: busySwapIds.has(row.id),
-                      selected: row.favorited,
-                    }}
-                    disabled={busySwapIds.has(row.id)}
-                    onPress={() => void toggleFavorite(row)}
-                    style={styles.star}
+                    onPress={() => void openRecipe(row.label)}
+                    style={styles.recipeRow}
                   >
+                    <Text style={styles.recipeText}>{RECIPE_COPY.addRecipe}</Text>
                     <MaterialSymbol
-                      color={row.favorited ? colors.alert : colors.body}
-                      name="favorite"
-                      size={22}
+                      color={colors.ember}
+                      name="arrow_forward"
+                      size={18}
                     />
                   </Pressable>
                 </View>
@@ -695,7 +881,48 @@ export default function FoodScreen() {
           ) : null}
         </SosCard>
       ) : null}
+      {showPersonalization ? (
+        <View style={{ height: 32 + insets.bottom }} />
+      ) : null}
     </SosScreen>
+    {showPersonalization ? (
+      <Pressable
+        accessibilityLabel={FOOD_SCREEN_COPY.settingsLabel}
+        accessibilityRole="button"
+        onPress={openSettings}
+        ref={gearRef}
+        style={[styles.gear, { bottom: 24 + insets.bottom }]}
+      >
+        <MaterialSymbol color={colors.ink} name="settings" size={26} />
+      </Pressable>
+    ) : null}
+    <FoodSettingsFlyout
+      allergens={rules.allergens}
+      cravings={cravings}
+      cravingsError={cravingsError}
+      cravingsLoaded={cravingsLoaded}
+      cravingsStatus={cravingsStatus}
+      dietFlags={rules.dietFlags}
+      onClose={closeSettings}
+      onCreateCraving={addCraving}
+      onRemoveCraving={deleteCraving}
+      onRetryCravings={() => void loadCravings()}
+      onSaveRules={saveFoodRules}
+      visible={settingsVisible}
+    />
+    <RecipeFlyout
+      error={recipeError}
+      loading={recipeLoading}
+      onClose={closeRecipe}
+      onRetry={() => {
+        if (recipeTitle) {
+          void openRecipe(recipeTitle);
+        }
+      }}
+      recipe={recipe}
+      visible={recipeVisible}
+    />
+    </View>
   );
 }
 
@@ -719,6 +946,24 @@ function RetryButton({
 }
 
 const styles = StyleSheet.create({
+  root: { backgroundColor: colors.canvas, flex: 1 },
+  gear: {
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderColor: "#D7D9D9",
+    borderRadius: 999,
+    borderWidth: 1,
+    elevation: 4,
+    height: 56,
+    justifyContent: "center",
+    position: "absolute",
+    right: 20,
+    shadowColor: "#141B1D",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    width: 56,
+  },
   loading: { alignItems: "center", justifyContent: "center", minHeight: 48 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 9 },
   chip: {
@@ -746,14 +991,26 @@ const styles = StyleSheet.create({
   },
   addText: { color: colors.ink, fontSize: 16, fontWeight: "800" },
   swap: {
-    alignItems: "center",
     borderColor: "#D7D9D9",
     borderRadius: 12,
     borderWidth: 1,
-    flexDirection: "row",
-    paddingHorizontal: 14,
+    gap: 2,
+    paddingBottom: 8,
+    paddingHorizontal: 6,
   },
-  swapText: { color: colors.ink, flex: 1, fontSize: 16, paddingVertical: 14 },
+  swapHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  swapText: { color: colors.ink, flex: 1, fontSize: 16, paddingHorizontal: 8 },
+  recipeRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+    minHeight: 36,
+    paddingHorizontal: 8,
+  },
+  recipeText: { color: colors.ember, fontSize: 14, fontWeight: "800" },
   star: {
     alignItems: "center",
     justifyContent: "center",

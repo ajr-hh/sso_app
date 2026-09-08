@@ -37,10 +37,10 @@ import { colors } from "../src/theme/colors";
 const RAIL_DESCRIPTIONS: Readonly<Record<RailId, string>> = {
   why: "Your goals and reasons, front and center.",
   hard_truths: "No cheerleading. Your own stakes, stated plainly.",
-  stats: "What research says, plainly stated.",
+  stats: "Plain facts about metabolic health. No spin.",
   rewards: "See how close you are to your next reward.",
   food: "Swap suggestions for your usual slip-up foods.",
-  messages: "A short message from your coach style of choice.",
+  messages: "Text a coach. They write back like a person.",
   call: "A live call from a coach or a loved one.",
 };
 
@@ -57,12 +57,14 @@ const RAIL_ROUTES = {
 export function SosScreen({
   children,
   eyebrow,
+  keyboardAware = false,
   subtitle,
   title,
   showBack = false,
 }: {
   children: ReactNode;
   eyebrow: string;
+  keyboardAware?: boolean;
   subtitle?: string;
   title: string;
   showBack?: boolean;
@@ -70,7 +72,12 @@ export function SosScreen({
   const router = useRouter();
 
   return (
-    <ScrollView contentContainerStyle={styles.screen}>
+    <ScrollView
+      automaticallyAdjustKeyboardInsets={keyboardAware}
+      contentContainerStyle={styles.screen}
+      keyboardDismissMode={keyboardAware ? "interactive" : undefined}
+      keyboardShouldPersistTaps={keyboardAware ? "handled" : "always"}
+    >
       {showBack ? (
         <BackControl
           onPress={() => {
@@ -99,27 +106,31 @@ export function SosCard({ children }: { children: ReactNode }) {
 }
 
 export function SosButton({
+  busy = false,
   disabled = false,
   label,
   onPress,
   size = "regular",
 }: {
+  busy?: boolean;
   disabled?: boolean;
   label: string;
   onPress: () => void;
   size?: "regular" | "large";
 }) {
   const large = size === "large";
+  const blocked = disabled || busy;
 
   return (
     <Pressable
       accessibilityRole="button"
-      disabled={disabled}
+      accessibilityState={{ busy, disabled: blocked }}
+      disabled={blocked}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
         large && styles.buttonLarge,
-        disabled && styles.disabled,
+        blocked && styles.disabled,
         pressed && styles.pressed,
       ]}
     >

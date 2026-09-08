@@ -38,6 +38,9 @@ const mockRouter = {
 let mockFocusCallback: (() => undefined | (() => void)) | null = null;
 let mockBlurFocus: (() => void) | undefined;
 
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
 jest.mock("expo-router", () => {
   const ReactModule = jest.requireActual("react") as typeof React;
   return {
@@ -66,10 +69,14 @@ jest.mock("../src/content/food-swaps", () => ({
   },
 }));
 jest.mock("../src/data/sos", () => ({ logSosEvent: jest.fn() }));
-jest.mock("../src/data/profile", () => ({ fetchProfile: jest.fn() }));
+jest.mock("../src/data/profile", () => ({
+  fetchProfile: jest.fn(),
+  saveProfile: jest.fn(),
+}));
 jest.mock("../src/data/cravings", () => ({
   createCraving: jest.fn(),
   fetchCravings: jest.fn(),
+  removeCraving: jest.fn(),
 }));
 jest.mock("../src/data/cravingSwaps", () => ({
   createCravingSwap: jest.fn(),
@@ -77,6 +84,7 @@ jest.mock("../src/data/cravingSwaps", () => ({
   setSwapFavorited: jest.fn(),
 }));
 jest.mock("../src/data/generate", () => ({ generateFoodSwaps: jest.fn() }));
+jest.mock("../src/data/recipes", () => ({ loadSwapRecipe: jest.fn() }));
 
 import FoodScreen from "../app/(app)/sos/food";
 import {
@@ -84,9 +92,15 @@ import {
   fetchCravingSwaps,
   setSwapFavorited,
 } from "../src/data/cravingSwaps";
-import { createCraving, fetchCravings } from "../src/data/cravings";
+import {
+  createCraving,
+  fetchCravings,
+  removeCraving,
+} from "../src/data/cravings";
 import { generateFoodSwaps } from "../src/data/generate";
-import { fetchProfile } from "../src/data/profile";
+import { fetchProfile, saveProfile } from "../src/data/profile";
+import { loadSwapRecipe } from "../src/data/recipes";
+import { MaterialSymbol } from "./MaterialSymbol";
 import { logSosEvent } from "../src/data/sos";
 import {
   FOOD_SCREEN_COPY,
@@ -100,13 +114,17 @@ const mockedFetchCravings = jest.mocked(fetchCravings);
 const mockedFetchProfile = jest.mocked(fetchProfile);
 const mockedFetchSwaps = jest.mocked(fetchCravingSwaps);
 const mockedGenerate = jest.mocked(generateFoodSwaps);
+const mockedLoadRecipe = jest.mocked(loadSwapRecipe);
 const mockedLogSosEvent = jest.mocked(logSosEvent);
+const mockedRemoveCraving = jest.mocked(removeCraving);
+const mockedSaveProfile = jest.mocked(saveProfile);
 const mockedSetFavorited = jest.mocked(setSwapFavorited);
 
 const profile: Profile = {
   age: null,
   allergens: [],
   coach_style: "marcus",
+  coach_style_set: false,
   diet_flags: [],
   display_name: "Alex",
   email: "alex@example.test",
@@ -120,6 +138,9 @@ const profile: Profile = {
 
 const iceCream: Craving = { id: "craving-1", label: "Ice cream", sort_order: 0 };
 const ramen: Craving = { id: "craving-2", label: "Ramen", sort_order: 1 };
+const pizza: Craving = { id: "craving-3", label: "Pizza", sort_order: 2 };
+const chocolate: Craving = { id: "craving-4", label: "Chocolate", sort_order: 3 };
+const readyCravings = [iceCream, pizza, chocolate];
 
 function savedSwap(overrides: Partial<CravingSwap> = {}): CravingSwap {
   return {
@@ -191,6 +212,18 @@ function chips(renderer: ReactTestRenderer): ReactTestInstance[] {
   );
 }
 
+function settingsButton(renderer: ReactTestRenderer): ReactTestInstance {
+  return renderer.root.findByProps({
+    accessibilityLabel: FOOD_SCREEN_COPY.settingsLabel,
+  });
+}
+
+function settingsOpen(renderer: ReactTestRenderer): boolean {
+  return (
+    renderer.root.findAllByProps({ testID: "food-settings-sheet" }).length > 0
+  );
+}
+
 function text(renderer: ReactTestRenderer): string {
   return JSON.stringify(renderer.toJSON());
 }
@@ -203,7 +236,7 @@ describe("Better Choices food screen", () => {
     mockRouter.canGoBack.mockReturnValue(true);
     mockedLogSosEvent.mockResolvedValue();
     mockedFetchProfile.mockResolvedValue(profile);
-    mockedFetchCravings.mockResolvedValue([iceCream]);
+    mockedFetchCravings.mockResolvedValue(readyCravings);
     mockedFetchSwaps.mockResolvedValue([]);
     mockedSetFavorited.mockResolvedValue();
     let createdCount = 0;
@@ -213,6 +246,18 @@ describe("Better Choices food screen", () => {
     }));
     mockedCreateCraving.mockResolvedValue(ramen);
     mockedGenerate.mockResolvedValue([]);
+    mockedRemoveCraving.mockResolvedValue();
+    mockedSaveProfile.mockResolvedValue();
+    mockedLoadRecipe.mockResolvedValue({
+      id: "recipe-1",
+      title: "Frozen yogurt bark",
+      summary: "A colder, lighter crunch that still feels like dessert.",
+      ingredients: ["2 cups yogurt", "1 cup berries", "2 tbsp honey"],
+      steps: ["Spread yogurt", "Scatter berries", "Freeze until firm"],
+      minutes: 15,
+      servings: "4",
+      ruleTags: ["dairy"],
+    });
   });
 
   test("keeps SOS logging and the back control", async () => {
@@ -226,18 +271,84 @@ describe("Better Choices food screen", () => {
     expect(text(renderer)).toContain(FOOD_SCREEN_COPY.title);
   });
 
-  test("sends members without food rules to Profile and loads no swaps", async () => {
+  test("opens allergies and cravings on this screen instead of sending people to Profile", async () => {
     mockedFetchProfile.mockResolvedValue({ ...profile, food_rules_set: false });
     const renderer = await renderScreen();
 
     expect(text(renderer)).toContain(FOOD_SCREEN_COPY.needsRulesTitle);
+    expect(settingsOpen(renderer)).toBe(false);
     act(() =>
       button(renderer, FOOD_SCREEN_COPY.needsRulesButton).props.onPress(),
     );
-    expect(mockRouter.navigate).toHaveBeenCalledWith("/(app)/(tabs)/profile");
+    expect(settingsOpen(renderer)).toBe(true);
+    expect(text(renderer)).toContain("Food rules");
+    expect(text(renderer)).toContain("Usual cravings");
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
     expect(mockRouter.push).not.toHaveBeenCalled();
     expect(mockedFetchSwaps).not.toHaveBeenCalled();
     expect(mockedGenerate).not.toHaveBeenCalled();
+  });
+
+  test("returns accessibility focus to the gear after settings close", async () => {
+    const restore = jest
+      .spyOn(AccessibilityInfo, "setAccessibilityFocus")
+      .mockImplementation();
+    (findNodeHandle as jest.Mock).mockClear();
+    const renderer = await renderScreen();
+
+    act(() => settingsButton(renderer).props.onPress());
+    expect(settingsOpen(renderer)).toBe(true);
+    act(() => button(renderer, "Done").props.onPress());
+    expect(settingsOpen(renderer)).toBe(false);
+    expect(restore).toHaveBeenCalledWith(7);
+    restore.mockRestore();
+  });
+
+  test("opens the same flyout from the bottom-right gear", async () => {
+    const renderer = await renderScreen();
+
+    expect(settingsOpen(renderer)).toBe(false);
+    act(() => settingsButton(renderer).props.onPress());
+    expect(settingsOpen(renderer)).toBe(true);
+    expect(text(renderer)).toContain("Food rules");
+    expect(text(renderer)).toContain("Usual cravings");
+  });
+
+  test("hides the gear until food rules can be edited", async () => {
+    const pending = deferred<Profile>();
+    mockedFetchProfile.mockReturnValueOnce(pending.promise);
+    const renderer = await renderScreen();
+
+    expect(() => settingsButton(renderer)).toThrow();
+
+    await act(async () => {
+      pending.resolve(profile);
+      await pending.promise;
+    });
+    await flush();
+
+    expect(settingsButton(renderer)).toBeDefined();
+  });
+
+  test("saving food rules from the flyout unlocks cravings on this screen", async () => {
+    mockedFetchProfile.mockResolvedValue({ ...profile, food_rules_set: false });
+    mockedFetchCravings.mockResolvedValue([]);
+    const renderer = await renderScreen();
+
+    act(() =>
+      button(renderer, FOOD_SCREEN_COPY.needsRulesButton).props.onPress(),
+    );
+    await act(async () =>
+      button(renderer, "Save food rules").props.onPress(),
+    );
+
+    expect(mockedSaveProfile).toHaveBeenCalledWith({
+      food_rules_set: true,
+      diet_flags: [],
+      allergens: [],
+    });
+    expect(text(renderer)).not.toContain(FOOD_SCREEN_COPY.needsRulesTitle);
+    expect(text(renderer)).toContain(FOOD_SCREEN_COPY.emptyCravingsTitle);
   });
 
   test("leaves needs_rules after a later successful profile load on return", async () => {
@@ -246,7 +357,7 @@ describe("Better Choices food screen", () => {
       .mockResolvedValueOnce({ ...profile, food_rules_set: true });
     mockedFetchCravings
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([iceCream]);
+      .mockResolvedValueOnce(readyCravings);
     const renderer = await renderScreen();
 
     expect(text(renderer)).toContain(FOOD_SCREEN_COPY.needsRulesTitle);
@@ -256,7 +367,7 @@ describe("Better Choices food screen", () => {
     await returnToScreen();
 
     expect(text(renderer)).not.toContain(FOOD_SCREEN_COPY.needsRulesTitle);
-    expect(chips(renderer)).toHaveLength(1);
+    expect(chips(renderer)).toHaveLength(3);
     expect(mockedFetchSwaps).toHaveBeenCalledWith(iceCream.id);
   });
 
@@ -265,11 +376,35 @@ describe("Better Choices food screen", () => {
     const renderer = await renderScreen();
 
     expect(text(renderer)).toContain(FOOD_SCREEN_COPY.emptyCravingsTitle);
+    expect(text(renderer)).toContain("3 more to go");
+    expect(text(renderer)).toContain("Pizza");
     expect(chips(renderer)).toHaveLength(0);
     expect(mockedFetchSwaps).not.toHaveBeenCalled();
     expect(button(renderer, FOOD_SCREEN_COPY.addCraving).props.disabled).toBe(
       false,
     );
+  });
+
+  test("adds a suggested craving from the setup ideas", async () => {
+    mockedFetchCravings.mockResolvedValue([]);
+    mockedCreateCraving.mockResolvedValueOnce(pizza);
+    const renderer = await renderScreen();
+
+    await act(async () =>
+      renderer.root.findByProps({ accessibilityLabel: "Add Pizza" }).props
+        .onPress(),
+    );
+    expect(mockedCreateCraving).toHaveBeenCalledWith("Pizza");
+    expect(text(renderer)).toContain("2 more to go");
+    expect(mockedFetchSwaps).not.toHaveBeenCalled();
+  });
+
+  test("holds swaps until three usual cravings are saved", async () => {
+    mockedFetchCravings.mockResolvedValue([iceCream, pizza]);
+    const renderer = await renderScreen();
+
+    expect(text(renderer)).toContain("1 more to go");
+    expect(mockedFetchSwaps).not.toHaveBeenCalled();
   });
 
   test("disables adding a craving until the first load settles", async () => {
@@ -303,7 +438,7 @@ describe("Better Choices food screen", () => {
     mockedFetchSwaps.mockResolvedValueOnce([]).mockResolvedValueOnce(seeded);
     const renderer = await renderScreen();
 
-    expect(chips(renderer)).toHaveLength(1);
+    expect(chips(renderer)).toHaveLength(3);
     expect(chips(renderer)[0].props.accessibilityState).toEqual({
       selected: true,
     });
@@ -362,7 +497,7 @@ describe("Better Choices food screen", () => {
   });
 
   test("never calls the model until Get swap ideas is tapped", async () => {
-    mockedFetchCravings.mockResolvedValue([ramen]);
+    mockedFetchCravings.mockResolvedValue([ramen, pizza, chocolate]);
     const generated: GeneratedSwap[] = [
       { label: "Broth with greens", ruleTags: [] },
       { label: "Egg drop soup", ruleTags: ["eggs"] },
@@ -407,7 +542,7 @@ describe("Better Choices food screen", () => {
   });
 
   test("shows a generation failure without inventing rows", async () => {
-    mockedFetchCravings.mockResolvedValue([ramen]);
+    mockedFetchCravings.mockResolvedValue([ramen, pizza, chocolate]);
     mockedGenerate.mockRejectedValueOnce(
       new Error("Couldn't get swap ideas right now. Try again."),
     );
@@ -454,6 +589,36 @@ describe("Better Choices food screen", () => {
         accessibilityLabel: "Remove save on Frozen yogurt bark",
       }),
     ).toBeDefined();
+    expect(
+      renderer.root.findAllByType(MaterialSymbol).some(
+        (node) => node.props.name === "favorite" && node.props.filled === true,
+      ),
+    ).toBe(true);
+  });
+
+  test("opens a shared recipe from the swap name", async () => {
+    mockedFetchSwaps.mockResolvedValue([savedSwap()]);
+    const renderer = await renderScreen();
+
+    expect(
+      renderer.root.findAllByProps({ testID: "swap-recipe-sheet" }),
+    ).toHaveLength(0);
+    await act(async () =>
+      renderer.root
+        .findByProps({
+          accessibilityLabel: "Recipe for Frozen yogurt bark",
+        })
+        .props.onPress(),
+    );
+    expect(mockedLoadRecipe).toHaveBeenCalledWith("Frozen yogurt bark");
+    expect(text(renderer)).toContain("Recipe");
+    expect(text(renderer)).toContain("Spread yogurt");
+    expect(text(renderer)).toContain("2 cups yogurt");
+    expect(
+      renderer.root
+        .findAllByType(MaterialSymbol)
+        .some((node) => node.props.name === "arrow_forward"),
+    ).toBe(true);
   });
 
   test("leaves the star alone when saving fails", async () => {
@@ -548,7 +713,7 @@ describe("Better Choices food screen", () => {
   });
 
   test("keeps a stale swap load from overwriting the selected craving", async () => {
-    mockedFetchCravings.mockResolvedValue([iceCream, ramen]);
+    mockedFetchCravings.mockResolvedValue([iceCream, ramen, chocolate]);
     const stale = deferred<CravingSwap[]>();
     mockedFetchSwaps.mockReturnValueOnce(stale.promise).mockResolvedValue([
       savedSwap({
@@ -592,8 +757,8 @@ describe("Better Choices food screen", () => {
     await flush();
 
     expect(mockedCreateCraving).toHaveBeenCalledWith("Ramen");
-    expect(chips(renderer)).toHaveLength(2);
-    expect(chips(renderer)[1].props.accessibilityState).toEqual({
+    expect(chips(renderer)).toHaveLength(4);
+    expect(chips(renderer)[3].props.accessibilityState).toEqual({
       selected: true,
     });
     expect(mockedFetchSwaps).toHaveBeenCalledWith(ramen.id);
@@ -607,12 +772,15 @@ describe("Better Choices food screen", () => {
     const renderer = await renderScreen();
 
     act(() => button(renderer, FOOD_SCREEN_COPY.addCraving).props.onPress());
-    expect(renderer.root.findByType(Modal).props.visible).toBe(true);
+    const addModal = renderer.root
+      .findAllByType(Modal)
+      .find((node) => node.props.visible);
+    expect(addModal?.props.visible).toBe(true);
 
     act(() => button(renderer, "Cancel").props.onPress());
     expect(restore).not.toHaveBeenCalled();
 
-    act(() => renderer.root.findByType(Modal).props.onDismiss());
+    act(() => addModal?.props.onDismiss());
     expect(restore).toHaveBeenCalledWith(7);
     expect(restore).toHaveBeenCalledTimes(1);
     restore.mockRestore();
@@ -648,7 +816,7 @@ describe("Better Choices food screen", () => {
 
     await returnToScreen();
     expect(text(renderer)).not.toContain(FOOD_SCREEN_COPY.needsRulesTitle);
-    expect(chips(renderer)).toHaveLength(1);
+    expect(chips(renderer)).toHaveLength(3);
     expect(mockedFetchSwaps).toHaveBeenCalledWith(iceCream.id);
 
     await act(async () => {
@@ -658,7 +826,7 @@ describe("Better Choices food screen", () => {
     await flush();
 
     expect(text(renderer)).not.toContain(FOOD_SCREEN_COPY.needsRulesTitle);
-    expect(chips(renderer)).toHaveLength(1);
+    expect(chips(renderer)).toHaveLength(3);
   });
 
   test("retries a failed food rules load before loading swaps", async () => {

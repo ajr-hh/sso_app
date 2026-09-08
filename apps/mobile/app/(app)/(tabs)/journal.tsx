@@ -1,4 +1,4 @@
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import {
   AccessibilityInfo,
@@ -37,11 +37,16 @@ import {
   normalizeJournalSentiment,
   shouldAnnounceJournalMessage,
 } from "../../../src/presentation/journal";
+import {
+  OTHER_TOOL_ROUTES,
+  RESTAURANT_COPY,
+} from "../../../src/presentation/otherTools";
 import { colors } from "../../../src/theme/colors";
 
 const MOODS = ["Good day", "Tough day", "Mixed"] as const;
 
 export default function JournalScreen() {
+  const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
   const bodyInputRef = useRef<TextInput>(null);
   const formY = useRef(0);
@@ -381,6 +386,15 @@ export default function JournalScreen() {
             </View>
           ))
         )}
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push(OTHER_TOOL_ROUTES.restaurant)}
+          style={styles.restaurantButton}
+        >
+          <Text style={styles.restaurantButtonText}>
+            {RESTAURANT_COPY.button}
+          </Text>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -433,4 +447,13 @@ const styles = StyleSheet.create({
   deleteActionText: { color: colors.alert, fontSize: 13, fontWeight: "800" },
   actionPressed: { opacity: 0.55 },
   entryMeta: { color: colors.body, fontSize: 12, textAlign: "right" },
+  restaurantButton: {
+    alignItems: "center",
+    backgroundColor: colors.ink,
+    borderRadius: 12,
+    justifyContent: "center",
+    minHeight: 50,
+    paddingHorizontal: 18,
+  },
+  restaurantButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
 });

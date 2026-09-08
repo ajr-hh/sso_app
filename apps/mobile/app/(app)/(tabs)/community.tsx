@@ -1,4 +1,4 @@
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -12,6 +12,7 @@ import {
 } from "react-native";
 
 import { ErrorBanner } from "../../../components/ErrorBanner";
+import { MaterialSymbol } from "../../../components/MaterialSymbol";
 import {
   createPost,
   deletePost,
@@ -20,9 +21,14 @@ import {
 } from "../../../src/data/community";
 import { explainError } from "../../../src/lib/errors";
 import { getSession } from "../../../src/lib/session";
+import {
+  CHALLENGE_COPY,
+  OTHER_TOOL_ROUTES,
+} from "../../../src/presentation/otherTools";
 import { colors } from "../../../src/theme/colors";
 
 export default function CommunityScreen() {
+  const router = useRouter();
   const [posts, setPosts] = useState<CommunityPost[] | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [body, setBody] = useState("");
@@ -146,6 +152,17 @@ export default function CommunityScreen() {
           </View>
         ))
       )}
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push(OTHER_TOOL_ROUTES.challenge)}
+        style={styles.challengeTile}
+      >
+        <View style={styles.challengeIcon}>
+          <MaterialSymbol color={colors.ember} name="emoji_events" size={24} />
+        </View>
+        <Text style={styles.challengeLabel}>{CHALLENGE_COPY.joinLabel}</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -295,5 +312,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: 11,
+  },
+  challengeTile: {
+    alignItems: "center",
+    backgroundColor: colors.ink,
+    borderRadius: 16,
+    flexDirection: "row",
+    gap: 12,
+    minHeight: 72,
+    padding: 16,
+  },
+  challengeIcon: {
+    alignItems: "center",
+    backgroundColor: colors.emberTint,
+    borderRadius: 999,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
+  },
+  challengeLabel: {
+    color: "#FFFFFF",
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "800",
   },
 });

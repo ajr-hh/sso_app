@@ -107,6 +107,18 @@ describe("UsualCravingsSection", () => {
     alert.mockRestore();
   });
 
+  test("lets someone tap a setup idea before they have three cravings", async () => {
+    const onCreate = jest.fn(async () => craving);
+    const renderer = await render({ cravings: [], onCreate });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain("top 3");
+    await act(async () =>
+      renderer.root.findByProps({ accessibilityLabel: "Add Pizza" }).props
+        .onPress(),
+    );
+    expect(onCreate).toHaveBeenCalledWith("Pizza");
+  });
+
   test("add flyout validates duplicate names and creates normalized labels", async () => {
     const onCreate = jest.fn(async () => craving);
     let renderer!: ReactTestRenderer;
@@ -179,7 +191,7 @@ describe("UsualCravingsSection", () => {
     expect(failedRenderer.root.findByType(Modal).props.visible).toBe(false);
   });
 
-  test("focuses input on show and restores once for cancel and native dismiss", async () => {
+  test("opens with the field focused and keeps Add craving tappable over the keyboard", async () => {
     const restore = jest
       .spyOn(AccessibilityInfo, "setAccessibilityFocus")
       .mockImplementation();
@@ -189,8 +201,18 @@ describe("UsualCravingsSection", () => {
     focusInput.mockClear();
     act(() => button(renderer, "Add a craving").props.onPress());
     const modal = renderer.root.findByType(Modal);
-    act(() => modal.props.onShow());
-    expect(focusInput).toHaveBeenCalledTimes(1);
+    const input = renderer.root.findByProps({
+      accessibilityLabel: "Craving name",
+    });
+    expect(input.props.autoFocus).toBe(true);
+    expect(input.props.blurOnSubmit).toBe(false);
+    expect(modal.props.onShow).toBeUndefined();
+    expect(
+      renderer.root.findByProps({ keyboardShouldPersistTaps: "always" }),
+    ).toBeDefined();
+    expect(button(renderer, "Add craving").props.onPressIn).toEqual(
+      expect.any(Function),
+    );
     expect(renderer.root.findByType(KeyboardAvoidingView).props.behavior).toBe(
       "padding",
     );

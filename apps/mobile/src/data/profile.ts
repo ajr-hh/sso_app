@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 
 import { getSupabase } from "../lib/supabase";
 import { isRailId, type RailId } from "../lib/domain";
+import { parseCoachId } from "../presentation/coaches";
 import {
   DIET_FLAGS,
   normalizeAllergens,
@@ -28,7 +29,7 @@ export async function fetchProfile(): Promise<Profile> {
   const { data, error } = await getSupabase()
     .from("profiles")
     .select(
-      "id, display_name, age, phone, why_matters, motivators, coach_style, rail_order, food_rules_set, diet_flags, allergens",
+      "id, display_name, age, phone, why_matters, motivators, coach_style, coach_style_set, rail_order, food_rules_set, diet_flags, allergens",
     )
     .eq("id", user.id)
     .eq("deleted", false)
@@ -65,7 +66,8 @@ export async function fetchProfile(): Promise<Profile> {
     phone: data.phone ?? null,
     why_matters: data.why_matters ?? null,
     motivators: data.motivators,
-    coach_style: data.coach_style === "elena" ? "elena" : "marcus",
+    coach_style: parseCoachId(data.coach_style),
+    coach_style_set: data.coach_style_set === true,
     rail_order: railOrder,
     food_rules_set: data.food_rules_set ?? false,
     diet_flags: dietFlags,

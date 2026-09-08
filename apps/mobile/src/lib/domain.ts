@@ -114,6 +114,13 @@ export function initialsFromName(name: string): string {
 export function validateReinforcementPhoto(
   photo: ReinforcementPhotoInput,
 ): ValidationResult {
+  if (photo.mode === "remember_why") {
+    if (!photo.caption.trim()) {
+      return { ok: false, error: "Write a caption for this photo." };
+    }
+    return { ok: true };
+  }
+
   if (photo.mode !== "hard_truths") {
     return { ok: true };
   }

@@ -19,6 +19,9 @@ import type { Craving } from "../src/data/cravings";
 import { explainError } from "../src/lib/errors";
 import {
   getCravingLabelValidationError,
+  getCravingSetupProgress,
+  getUnusedCravingSuggestions,
+  MIN_USUAL_CRAVINGS,
   normalizeCravingLabel,
 } from "../src/presentation/cravings";
 import { colors } from "../src/theme/colors";
@@ -89,7 +92,6 @@ export function AddCravingFlyout({
       animationType="slide"
       onDismiss={onDismiss}
       onRequestClose={close}
-      onShow={() => inputRef.current?.focus()}
       transparent
       visible={visible}
     >
@@ -115,7 +117,7 @@ export function AddCravingFlyout({
           >
             <ScrollView
               contentContainerStyle={styles.sheetContent}
-              keyboardShouldPersistTaps="handled"
+              keyboardShouldPersistTaps="always"
             >
               <Text accessibilityRole="header" style={styles.sheetTitle}>
                 Add a craving
@@ -126,10 +128,14 @@ export function AddCravingFlyout({
                 accessibilityHint="Required"
                 accessibilityLabel="Craving name"
                 autoCapitalize="sentences"
+                autoFocus
+                blurOnSubmit={false}
                 editable={!saving}
                 maxLength={60}
                 onChangeText={setLabel}
+                onSubmitEditing={() => void save()}
                 ref={inputRef}
+                returnKeyType="done"
                 style={styles.input}
                 value={label}
               />
@@ -147,6 +153,7 @@ export function AddCravingFlyout({
                   accessibilityState={{ busy: saving }}
                   disabled={saving}
                   onPress={() => void save()}
+                  onPressIn={() => void save()}
                   style={[styles.saveButton, saving && styles.disabled]}
                 >
                   <Text style={styles.saveText}>
@@ -183,10 +190,32 @@ export function UsualCravingsSection({
 }: UsualCravingsSectionProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const [tileError, setTileError] = useState<string | null>(null);
+  const [addingSuggestion, setAddingSuggestion] = useState<string | null>(null);
   const [removingIds, setRemovingIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
   const addDisabled = loading || loadError !== null;
+  const setup = getCravingSetupProgress(cravings.length);
+  const unusedSuggestions = getUnusedCravingSuggestions(
+    cravings.map(({ label }) => label),
+  );
+
+  const addSuggestion = async (label: string) => {
+    if (addDisabled || addingSuggestion) return;
+    setTileError(null);
+    setAddingSuggestion(label);
+    try {
+      await onCreate(label);
+    } catch (caughtError) {
+      setTileError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : explainError(caughtError),
+      );
+    } finally {
+      setAddingSuggestion(null);
+    }
+  };
   const removingIdsRef = useRef<ReadonlySet<string>>(new Set());
   const triggerRef = useRef<View>(null);
   const focusRestoredRef = useRef(true);
@@ -251,7 +280,9 @@ export function UsualCravingsSection({
         Usual cravings
       </Text>
       <Text style={styles.supporting}>
-        Add the foods you most often want to swap.
+        {setup.complete
+          ? "Add the foods you most often want to swap."
+          : `Add your top ${MIN_USUAL_CRAVINGS} — the foods you slip on most.`}
       </Text>
       {loadError ? (
         <View style={styles.feedback}>
@@ -279,6 +310,35 @@ export function UsualCravingsSection({
       {loading ? (
         <View accessibilityLabel="Loading usual cravings" style={styles.loading}>
           <ActivityIndicator color={colors.ember} />
+        </View>
+      ) : null}
+      {!setup.complete && unusedSuggestions.length > 0 ? (
+        <View
+          accessibilityLabel="Ideas to start"
+          style={styles.suggestions}
+        >
+          {unusedSuggestions.map((label) => {
+            const busy = addingSuggestion === label;
+            return (
+              <Pressable
+                accessibilityLabel={`Add ${label}`}
+                accessibilityRole="button"
+                accessibilityState={{
+                  busy,
+                  disabled: addDisabled || addingSuggestion !== null,
+                }}
+                disabled={addDisabled || addingSuggestion !== null}
+                key={label}
+                onPress={() => void addSuggestion(label)}
+                style={[
+                  styles.suggestion,
+                  addDisabled && styles.disabled,
+                ]}
+              >
+                <Text style={styles.suggestionText}>{label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
       ) : null}
       {cravings.map((craving) => {
@@ -350,6 +410,16 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 16,
   },
+  suggestions: { flexDirection: "row", flexWrap: "wrap", gap: 9 },
+  suggestion: {
+    borderColor: "#C8CCCC",
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 44,
+    paddingHorizontal: 14,
+  },
+  suggestionText: { color: colors.ink, fontSize: 15, fontWeight: "700" },
   craving: {
     alignItems: "center",
     borderColor: "#D7D9D9",

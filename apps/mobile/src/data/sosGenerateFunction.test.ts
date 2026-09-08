@@ -89,12 +89,26 @@ describe("sos-generate function contract", () => {
   });
 
   test("dispatches by kind through a handler record", () => {
+    expect(normalized).toContain('"food_swaps"');
+    expect(normalized).toContain('"swap_recipe"');
+    expect(normalized).toContain('"coach_reply"');
+    expect(normalized).toContain('"research_fact"');
+    expect(normalized).toContain('"hard_truths_coach"');
+    expect(normalized).toContain('"planned_suggestions"');
+    expect(normalized).toContain("food_swaps: prepareFoodSwaps,");
+    expect(normalized).toContain("swap_recipe: prepareSwapRecipe,");
+    expect(normalized).toContain("coach_reply: prepareCoachReply,");
+    expect(normalized).toContain("research_fact: prepareResearchFact,");
+    expect(normalized).toContain("hard_truths_coach: prepareHardTruthsCoach,");
     expect(normalized).toContain(
-      'const SUPPORTED_KINDS = ["food_swaps"] as const;',
+      "planned_suggestions: preparePlannedSuggestions,",
     );
-    expect(normalized).toContain(
-      "const KIND_HANDLERS: Record<SosGenerateKind, KindHandler> = { food_swaps: prepareFoodSwaps, };",
-    );
+    expect(normalized).toContain('"menu_scan"');
+    expect(normalized).toContain('"food_alias"');
+    expect(normalized).toContain("menu_scan: prepareMenuScan,");
+    expect(normalized).toContain("food_alias: prepareFoodAlias,");
+    expect(normalized).toContain("async function prepareMenuScan(");
+    expect(normalized).toContain("async function prepareFoodAlias(");
     expect(normalized).toContain("const handler = KIND_HANDLERS[kind];");
     expect(normalized).toContain(
       "return jsonResponse({ error: BAD_REQUEST_ERROR }, 400);",
@@ -305,6 +319,10 @@ describe("sos-generate function contract", () => {
     expect(uniqueMatches(source, /Deno\.env\.get\("([A-Z_]+)"\)/g)).toEqual([
       "OPENAI_API_KEY",
       "OPENAI_MODEL",
+      "OPENAI_MODEL_ELENA",
+      "OPENAI_MODEL_JORDAN",
+      "OPENAI_MODEL_MARCUS",
+      "OPENAI_MODEL_SAM",
     ]);
     expect(source).not.toMatch(/sk-[A-Za-z0-9]/);
     expect(source).not.toContain("SERVICE_ROLE");
@@ -315,6 +333,28 @@ describe("sos-generate function contract", () => {
     expect(normalized).toContain(
       '"Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info"',
     );
+  });
+
+  test("asks coach replies to sound like a person and never use an em dash", () => {
+    expect(source).toContain("Never use an em dash or an en dash.");
+    expect(source).toContain("Never say you are an AI, a model, or an assistant.");
+    expect(source).toContain("OPENAI_MODEL_MARCUS");
+    expect(source).toContain("OPENAI_MODEL_ELENA");
+    expect(source).toContain("OPENAI_MODEL_SAM");
+    expect(source).toContain("OPENAI_MODEL_JORDAN");
+  });
+
+  test("plans ahead with three fenced suggestions and never persists the event label", () => {
+    expect(normalized).toContain("planned_suggestions: preparePlannedSuggestions,");
+    expect(normalized).toContain("Always return exactly these icons in this order");
+    expect(source).toContain("fenceMemberData(");
+    expect(source).toContain("event_kind: eventKind");
+    expect(source).toContain("event_label: eventLabel");
+    expect(normalized).not.toContain("event_label: prepared");
+    expect(source).toContain("protein and vegetables first");
+    expect(source).toContain("limited alcohol");
+    expect(source).toContain("avoid_texts");
+    expect(source).toContain("specific to this event");
   });
 
   test("prompts for satisfying, non-medical swaps that obey the food rules", () => {

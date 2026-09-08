@@ -5,7 +5,7 @@ import {
   type ReactTestInstance,
   type ReactTestRenderer,
 } from "react-test-renderer";
-import { Text } from "react-native";
+import { ScrollView, Text } from "react-native";
 
 import type {
   AccountabilityContact,
@@ -28,6 +28,9 @@ jest.mock("../src/data/cravings", () => ({
   fetchCravings: jest.fn(),
   removeCraving: jest.fn(),
 }));
+jest.mock("../src/lib/session", () => ({
+  signOut: jest.fn(),
+}));
 jest.mock("./FoodRulesSection", () => {
   const ReactModule = jest.requireActual("react") as typeof React;
   return {
@@ -42,6 +45,26 @@ jest.mock("./UsualCravingsSection", () => {
       ReactModule.createElement("UsualCravingsSection", props),
   };
 });
+const mockSetParams = jest.fn();
+let mockProfileSection: string | string[] | undefined;
+let mockFocusCallback: (() => undefined | (() => void)) | null = null;
+
+jest.mock("expo-router", () => {
+  const ReactModule = jest.requireActual("react") as typeof React;
+  return {
+    useFocusEffect: (callback: () => undefined | (() => void)) => {
+      ReactModule.useEffect(() => {
+        mockFocusCallback = callback;
+        return () => {
+          mockFocusCallback = null;
+        };
+      }, [callback]);
+    },
+    useLocalSearchParams: () => ({ section: mockProfileSection }),
+    useRouter: () => ({ push: jest.fn(), setParams: mockSetParams }),
+  };
+});
+
 jest.mock("./YourPeopleSection", () => {
   const ReactModule = jest.requireActual("react") as typeof React;
   return {
@@ -62,6 +85,8 @@ import {
   removeCraving,
 } from "../src/data/cravings";
 import { fetchProfile, saveProfile } from "../src/data/profile";
+import { signOut } from "../src/lib/session";
+import { PROFILE_LOG_OUT } from "../src/presentation/profile";
 import type { FoodRulesSectionProps } from "./FoodRulesSection";
 import type { UsualCravingsSectionProps } from "./UsualCravingsSection";
 import type { YourPeopleSectionProps } from "./YourPeopleSection";
@@ -74,11 +99,13 @@ const mockedFetchCravings = jest.mocked(fetchCravings);
 const mockedRemoveCraving = jest.mocked(removeCraving);
 const mockedFetchProfile = jest.mocked(fetchProfile);
 const mockedSaveProfile = jest.mocked(saveProfile);
+const mockedSignOut = jest.mocked(signOut);
 
 const profile: Profile = {
   age: 40,
   allergens: [],
   coach_style: "marcus",
+  coach_style_set: false,
   diet_flags: [],
   display_name: "Alex",
   email: "alex@example.test",
@@ -123,6 +150,13 @@ async function renderScreen(): Promise<ReactTestRenderer> {
     await Promise.resolve();
   });
   return renderer;
+}
+
+async function returnToProfile(): Promise<void> {
+  await act(async () => {
+    mockFocusCallback?.();
+    await Promise.resolve();
+  });
 }
 
 function peopleProps(renderer: ReactTestRenderer): YourPeopleSectionProps {
@@ -175,6 +209,8 @@ async function captureRejection(operation: () => Promise<unknown>) {
 
 describe("ProfileScreen contact orchestration", () => {
   beforeEach(() => {
+    mockProfileSection = undefined;
+    mockFocusCallback = null;
     jest.clearAllMocks();
     mockedFetchProfile.mockResolvedValue(profile);
     mockedFetchContacts.mockResolvedValue([]);
@@ -184,6 +220,7 @@ describe("ProfileScreen contact orchestration", () => {
     mockedCreateCraving.mockResolvedValue(craving);
     mockedRemoveCraving.mockResolvedValue();
     mockedSaveProfile.mockResolvedValue();
+    mockedSignOut.mockResolvedValue();
   });
 
   test("renders the profile while contacts load independently", async () => {
@@ -297,6 +334,20 @@ describe("ProfileScreen contact orchestration", () => {
       await staleRetry.promise;
     });
     expect(peopleProps(renderer).contacts).toEqual([]);
+  });
+
+  test("labels motivation chips with their own names, not coach names", async () => {
+    const renderer = await renderScreen();
+    const labels = renderer.root
+      .findAllByType(Text)
+      .map((node) => node.props.children)
+      .flat(Infinity)
+      .filter((value): value is string => typeof value === "string");
+
+    expect(labels).toEqual(
+      expect.arrayContaining(["Better Choices", "Hard Truths", "Marcus"]),
+    );
+    expect(labels.filter((label) => label === "Marcus")).toHaveLength(1);
   });
 
   test("blocks saving a legacy motivator with an actionable error", async () => {
@@ -477,6 +528,66 @@ describe("ProfileScreen contact orchestration", () => {
     });
   });
 
+  test("adopts a coach saved on Messages when Profile was not edited", async () => {
+    const renderer = await renderScreen();
+    mockedFetchProfile.mockResolvedValue({
+      ...profile,
+      coach_style: "sam",
+      coach_style_set: true,
+    });
+    await returnToProfile();
+
+    const sam = renderer.root
+      .findAllByProps({ accessibilityRole: "radio" })
+      .find((node) =>
+        node.findAllByType(Text).some(({ props }) => props.children === "Sam"),
+      );
+    expect(sam?.props.accessibilityState.selected).toBe(true);
+  });
+
+  test("keeps an unsaved coach pick when Profile is focused again", async () => {
+    const renderer = await renderScreen();
+    const elena = renderer.root
+      .findAllByProps({ accessibilityRole: "radio" })
+      .find((node) =>
+        node.findAllByType(Text).some(({ props }) => props.children === "Elena"),
+      );
+    if (!elena) throw new Error("Missing Elena coach chip.");
+
+    await act(async () => {
+      elena.props.onPress();
+    });
+    mockedFetchProfile.mockResolvedValue(profile);
+    await returnToProfile();
+
+    const selected = renderer.root
+      .findAllByProps({ accessibilityRole: "radio" })
+      .find((node) =>
+        node.findAllByType(Text).some(({ props }) => props.children === "Elena"),
+      );
+    expect(selected?.props.accessibilityState.selected).toBe(true);
+  });
+
+  test("picks up contacts added on Call someone safe when Profile is focused again", async () => {
+    const renderer = await renderScreen();
+    expect(peopleProps(renderer).contacts).toEqual([]);
+
+    mockedFetchContacts.mockResolvedValue([contact]);
+    await returnToProfile();
+
+    expect(peopleProps(renderer).contacts).toEqual([contact]);
+  });
+
+  test("picks up cravings added on Better Choices when Profile is focused again", async () => {
+    const renderer = await renderScreen();
+    expect(cravingsProps(renderer).cravings).toEqual([]);
+
+    mockedFetchCravings.mockResolvedValue([craving]);
+    await returnToProfile();
+
+    expect(cravingsProps(renderer).cravings).toEqual([craving]);
+  });
+
   test("does not let a stale cravings load overwrite a successful add", async () => {
     const staleLoad = deferred<Craving[]>();
     mockedFetchCravings.mockReturnValue(staleLoad.promise);
@@ -510,5 +621,115 @@ describe("ProfileScreen contact orchestration", () => {
       await cravingsProps(renderer).onRemove(craving);
     });
     expect(cravingsProps(renderer).status).toBe("Pizza removed.");
+  });
+
+  test("jumps to Food rules when opened with the section param", async () => {
+    mockProfileSection = "food-rules";
+    const scrollTo = jest.fn();
+    jest.spyOn(ScrollView.prototype, "scrollTo").mockImplementation(scrollTo);
+
+    const renderer = await renderScreen();
+    const target = renderer.root.findByProps({ testID: "profile-food-rules" });
+    act(() => {
+      target.props.onLayout({
+        nativeEvent: { layout: { y: 420, x: 0, width: 320, height: 200 } },
+      });
+    });
+
+    expect(scrollTo).toHaveBeenCalledWith({ y: 420, animated: false });
+    expect(mockSetParams).toHaveBeenCalledWith({ section: undefined });
+  });
+
+  test("puts Log out at the top right of the header", async () => {
+    const renderer = await renderScreen();
+    const logOut = buttonByText(renderer, PROFILE_LOG_OUT);
+    let header: ReactTestInstance | null = logOut.parent;
+    while (header && header.props.style?.flexDirection !== "row") {
+      header = header.parent;
+    }
+    if (!header) {
+      throw new Error("Log out has no header parent.");
+    }
+
+    expect(header.props.style).toEqual(
+      expect.objectContaining({
+        alignItems: "center",
+        flexDirection: "row",
+        justifyContent: "space-between",
+      }),
+    );
+    expect(
+      header
+        .findAllByType(Text)
+        .some((text) => text.props.children === "YOUR SUPPORT PLAN"),
+    ).toBe(true);
+    expect(logOut.props.accessibilityState).toEqual({
+      busy: false,
+      disabled: false,
+    });
+  });
+
+  test("still offers Log out when the profile fails to load", async () => {
+    mockedFetchProfile.mockRejectedValueOnce(new Error("profile missing"));
+    const renderer = await renderScreen();
+
+    expect(buttonByText(renderer, PROFILE_LOG_OUT)).toBeTruthy();
+    expect(JSON.stringify(renderer.toJSON())).toContain("Try again");
+  });
+
+  test("disables Log out while sign out is in flight, then re-enables after failure", async () => {
+    const pending = deferred<void>();
+    mockedSignOut.mockReturnValueOnce(pending.promise);
+    const renderer = await renderScreen();
+
+    act(() => {
+      void buttonByText(renderer, PROFILE_LOG_OUT).props.onPress();
+    });
+    expect(buttonByText(renderer, PROFILE_LOG_OUT).props.disabled).toBe(true);
+    expect(buttonByText(renderer, PROFILE_LOG_OUT).props.accessibilityState).toEqual({
+      busy: true,
+      disabled: true,
+    });
+
+    await act(async () => {
+      pending.reject(new Error("Couldn't finish signing out."));
+      try {
+        await pending.promise;
+      } catch {
+        // Expected rejection from the deferred sign out.
+      }
+    });
+
+    expect(buttonByText(renderer, PROFILE_LOG_OUT).props.disabled).toBe(false);
+    expect(buttonByText(renderer, PROFILE_LOG_OUT).props.accessibilityState).toEqual({
+      busy: false,
+      disabled: false,
+    });
+  });
+
+  test("signs the member out when Log out is pressed", async () => {
+    const renderer = await renderScreen();
+
+    await act(async () => {
+      await buttonByText(renderer, PROFILE_LOG_OUT).props.onPress();
+    });
+
+    expect(mockedSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  test("shows a sign out error without leaving the profile", async () => {
+    mockedSignOut.mockRejectedValueOnce(
+      new Error("Couldn't finish signing out."),
+    );
+    const renderer = await renderScreen();
+
+    await act(async () => {
+      await buttonByText(renderer, PROFILE_LOG_OUT).props.onPress();
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).toContain(
+      "Couldn't finish signing out.",
+    );
+    expect(JSON.stringify(renderer.toJSON())).toContain("Profile");
   });
 });

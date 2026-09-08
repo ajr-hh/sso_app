@@ -50,6 +50,7 @@ export type YourPeopleSectionProps = {
   onModalVisibleChange: (visible: boolean) => void;
   onRemove: (contact: AccountabilityContact) => Promise<void>;
   onRetry: () => void;
+  variant?: "full" | "form";
 };
 
 export function YourPeopleSection({
@@ -62,6 +63,7 @@ export function YourPeopleSection({
   onModalVisibleChange,
   onRemove,
   onRetry,
+  variant = "full",
 }: YourPeopleSectionProps) {
   const [form, setForm] = useState<AccountabilityContactInput>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
@@ -161,88 +163,94 @@ export function YourPeopleSection({
     );
   };
 
+  const formOnly = variant === "form";
+
   return (
-    <View style={styles.section}>
-      <Text accessibilityRole="header" style={styles.sectionTitle}>
-        Your people
-      </Text>
-      <Text style={styles.supporting}>
-        Accountability partners SOS can reach on your behalf.
-      </Text>
+    <View style={formOnly ? undefined : styles.section}>
+      {formOnly ? null : (
+        <>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>
+            Your people
+          </Text>
+          <Text style={styles.supporting}>
+            Accountability partners SOS can reach on your behalf.
+          </Text>
 
-      {loadError ? (
-        <View style={styles.feedback}>
-          <ErrorBanner message={loadError} />
-          <Pressable
-            accessibilityRole="button"
-            onPress={onRetry}
-            style={styles.retryButton}
-          >
-            <Text style={styles.retryText}>Try again</Text>
-          </Pressable>
-        </View>
-      ) : null}
-      {tileError ? <ErrorBanner message={tileError} /> : null}
-      {status ? (
-        <Text
-          accessibilityLiveRegion={
-            Platform.OS === "android" ? "polite" : undefined
-          }
-          style={styles.status}
-        >
-          {status}
-        </Text>
-      ) : null}
-      {loading ? (
-        <View accessibilityLabel="Loading your people" style={styles.loading}>
-          <ActivityIndicator color={colors.ember} />
-        </View>
-      ) : null}
-
-      {contacts.map((contact) => {
-        const relationship =
-          RELATIONSHIP_OPTIONS.find(
-            (option) => option.value === contact.relationship,
-          )?.label ?? contact.relationship;
-        const removing = removingIds.has(contact.id);
-
-        return (
-          <View key={contact.id} style={styles.contact}>
-            <View style={styles.contactDetails}>
-              <Text style={styles.contactName}>{contact.name}</Text>
-              <Text style={styles.contactMeta}>{relationship}</Text>
-              <Text style={styles.contactMeta}>{contact.phone}</Text>
-              <Text style={styles.contactMeta}>{contact.email}</Text>
+          {loadError ? (
+            <View style={styles.feedback}>
+              <ErrorBanner message={loadError} />
+              <Pressable
+                accessibilityRole="button"
+                onPress={onRetry}
+                style={styles.retryButton}
+              >
+                <Text style={styles.retryText}>Try again</Text>
+              </Pressable>
             </View>
-            <Pressable
-              accessibilityLabel={`Remove ${contact.name}`}
-              accessibilityRole="button"
-              accessibilityState={{ busy: removing, disabled: removing }}
-              disabled={removing}
-              onPress={() => confirmRemove(contact)}
-              style={[styles.removeButton, removing && styles.disabled]}
+          ) : null}
+          {tileError ? <ErrorBanner message={tileError} /> : null}
+          {status ? (
+            <Text
+              accessibilityLiveRegion={
+                Platform.OS === "android" ? "polite" : undefined
+              }
+              style={styles.status}
             >
-              <Text style={styles.removeText}>
-                {removing ? "Removing…" : "Remove"}
-              </Text>
-            </Pressable>
-          </View>
-        );
-      })}
+              {status}
+            </Text>
+          ) : null}
+          {loading ? (
+            <View accessibilityLabel="Loading your people" style={styles.loading}>
+              <ActivityIndicator color={colors.ember} />
+            </View>
+          ) : null}
 
-      <Pressable
-        accessibilityLabel="Add a loved one to Your people"
-        accessibilityRole="button"
-        onPress={() => {
-          setFormError(null);
-          setTileError(null);
-          onModalVisibleChange(true);
-        }}
-        style={styles.addButton}
-      >
-        <MaterialSymbol name="person_add" size={22} />
-        <Text style={styles.addButtonText}>Add a loved one</Text>
-      </Pressable>
+          {contacts.map((contact) => {
+            const relationship =
+              RELATIONSHIP_OPTIONS.find(
+                (option) => option.value === contact.relationship,
+              )?.label ?? contact.relationship;
+            const removing = removingIds.has(contact.id);
+
+            return (
+              <View key={contact.id} style={styles.contact}>
+                <View style={styles.contactDetails}>
+                  <Text style={styles.contactName}>{contact.name}</Text>
+                  <Text style={styles.contactMeta}>{relationship}</Text>
+                  <Text style={styles.contactMeta}>{contact.phone}</Text>
+                  <Text style={styles.contactMeta}>{contact.email}</Text>
+                </View>
+                <Pressable
+                  accessibilityLabel={`Remove ${contact.name}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ busy: removing, disabled: removing }}
+                  disabled={removing}
+                  onPress={() => confirmRemove(contact)}
+                  style={[styles.removeButton, removing && styles.disabled]}
+                >
+                  <Text style={styles.removeText}>
+                    {removing ? "Removing…" : "Remove"}
+                  </Text>
+                </Pressable>
+              </View>
+            );
+          })}
+
+          <Pressable
+            accessibilityLabel="Add a loved one to Your people"
+            accessibilityRole="button"
+            onPress={() => {
+              setFormError(null);
+              setTileError(null);
+              onModalVisibleChange(true);
+            }}
+            style={styles.addButton}
+          >
+            <MaterialSymbol name="person_add" size={22} />
+            <Text style={styles.addButtonText}>Add a loved one</Text>
+          </Pressable>
+        </>
+      )}
 
       <Modal
         animationType="slide"

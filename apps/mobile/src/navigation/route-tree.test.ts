@@ -73,4 +73,20 @@ describe("route tree", () => {
     expect(stackRoutes).not.toContain("sos");
     expect(stackRoutes).not.toContain("sos/index");
   });
+
+  test("registers the Other tools screens above the tabs", () => {
+    const stackRoutes = childRoutes(app);
+    const tools = childNamed(app, "tools");
+    const toolRoutes = tools
+      ? childRoutes(tools).map((route) => `tools/${route}`)
+      : stackRoutes;
+
+    expect(toolRoutes).toEqual(
+      expect.arrayContaining([
+        "tools/challenges",
+        "tools/restaurant",
+        "tools/alias",
+      ]),
+    );
+  });
 });

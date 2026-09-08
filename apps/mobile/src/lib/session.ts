@@ -14,6 +14,14 @@ export async function getSession(): Promise<Session | null> {
   return data.session;
 }
 
+export async function signOut(): Promise<void> {
+  const { error } = await getSupabase().auth.signOut();
+
+  if (error) {
+    throw error;
+  }
+}
+
 export function onAuthChange(callback: AuthChangeCallback) {
   const {
     data: { subscription },

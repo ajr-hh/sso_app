@@ -20,6 +20,7 @@ export type ReinforcementPhoto = {
   caption: string | null;
   tag: HardTruthTag | "remember_why";
   mode: PhotoMode;
+  favorited: boolean;
   created_at: string;
   signed_url: string;
 };
@@ -86,17 +87,22 @@ export async function saveReinforcementPhoto(
     throw new Error("Couldn't prepare the photo for upload.");
   }
 
-  const blob = await response.blob();
+  // RN file:// fetches often report the blob as text/plain. Storage rejects
+  // that mime even when contentType is set, so upload the raw JPEG bytes.
+  const bytes = await response.arrayBuffer();
   const storageKey = `${userId}/${newId()}.jpg`;
   const supabase = getSupabase();
   const { error: uploadError } = await supabase.storage
     .from(PHOTOS_BUCKET)
-    .upload(storageKey, blob, {
+    .upload(storageKey, bytes, {
       contentType: "image/jpeg",
       upsert: false,
     });
 
   if (uploadError) {
+    if (/mime type/i.test(uploadError.message)) {
+      throw new Error("We couldn’t save that photo. Try another image.");
+    }
     throw new Error(uploadError.message);
   }
 
@@ -121,15 +127,83 @@ export async function saveReinforcementPhoto(
   );
 }
 
+export async function setPhotoFavorited(
+  id: string,
+  favorited: boolean,
+): Promise<void> {
+  const userId = await requireUserId();
+  const { data, error } = await getSupabase()
+    .from("reinforcement_photos")
+    .update({ favorited })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .eq("deleted", false)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data) {
+    throw new Error("Photo was not found or is no longer active.");
+  }
+}
+
+export async function updateReinforcementPhotoCaption(
+  id: string,
+  caption: string,
+): Promise<void> {
+  const trimmed = caption.trim();
+  if (trimmed.length === 0) {
+    throw new Error("Write a caption for this photo.");
+  }
+  const userId = await requireUserId();
+  const { data, error } = await getSupabase()
+    .from("reinforcement_photos")
+    .update({ caption: trimmed })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .eq("deleted", false)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data) {
+    throw new Error("Photo was not found or is no longer active.");
+  }
+}
+
+export async function removeReinforcementPhoto(id: string): Promise<void> {
+  const userId = await requireUserId();
+  const { data, error } = await getSupabase()
+    .from("reinforcement_photos")
+    .update({ deleted: true, deleted_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", userId)
+    .eq("deleted", false)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data) {
+    throw new Error("Photo was not found or is no longer active.");
+  }
+}
+
 export async function fetchPhotos(
   mode: PhotoMode,
 ): Promise<ReinforcementPhoto[]> {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("reinforcement_photos")
-    .select("id, user_id, storage_key, caption, tag, mode, created_at")
+    .select("id, user_id, storage_key, caption, tag, mode, favorited, created_at")
     .eq("mode", mode)
     .eq("deleted", false)
+    .order("favorited", { ascending: false })
     .order("created_at", { ascending: false });
 
   if (error) {
