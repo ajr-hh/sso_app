@@ -94,7 +94,7 @@ cd apps/mobile
 npm install --legacy-peer-deps
 ```
 
-That `cd` line assumes the Terminal is already in the **sso_app** folder. The `--legacy-peer-deps` flag is required for this project. Leave it in.
+That `cd` line assumes the Terminal is already in the **sso_app** folder. The `--legacy-peer-deps` flag is required for this project. Leave it in. Expo cloud builds read `apps/mobile/.npmrc` so they use the same setting without you typing the flag.
 
 If the pull added files under `supabase/migrations`, go to [Update the database](#update-the-database) next. Do not skip that.
 
